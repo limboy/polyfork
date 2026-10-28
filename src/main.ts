@@ -166,7 +166,7 @@ function setShown(s: typeof shown) {
 
 async function remove(item: Asset) {
   if (!confirm(`删除「${item.title}」？`)) return;
-  const cards = visible();
+  const cards = displayed();
   const next = cards[cards.findIndex((i) => i.id === item.id) + 1] ?? cards.at(-2);
   await Library.remove(item.id);
   if (current) scene.remove(current);
@@ -195,6 +195,11 @@ function card(i: Asset) {
     `<span title="${esc(i.title)}">${esc(i.title)}</span>`;
   d.onclick = () => show(i);
   return d;
+}
+
+// displayed returns the visible models in the order the sidebar shows them.
+function displayed() {
+  return groupItems(visible(), $<HTMLSelectElement>("group").value).flatMap((g) => g.items);
 }
 
 function render() {
@@ -233,7 +238,8 @@ async function reload(selectId?: string) {
     $("emptyDownload").onclick = openDownload;
     return;
   }
-  const pick = items.find((i) => i.id === selectId) ?? items.find((i) => i.id === activeId) ?? items[0]!;
+  const pick =
+    items.find((i) => i.id === selectId) ?? items.find((i) => i.id === activeId) ?? displayed()[0] ?? items[0]!;
   if (pick.id !== activeId || !current) show(pick);
 }
 
