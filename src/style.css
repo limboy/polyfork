@@ -167,25 +167,8 @@ canvas {
   max-width: 340px;
 }
 .info h2 {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 15px;
-}
-.info .meta {
-  color: var(--muted);
-  font-size: 12px;
-  margin-top: 2px;
-}
-.info .meta select {
-  width: auto;
-  padding: 2px 6px;
-}
-.info .links {
-  display: flex;
-  gap: 12px;
-  margin-top: 6px;
-}
-.info .links .danger {
-  color: var(--danger);
 }
 .toolbar {
   position: absolute;
@@ -209,8 +192,44 @@ canvas {
 .toolbar label input {
   width: auto;
 }
+.toolbar.right {
+  left: auto;
+  right: 12px;
+}
 .toolbar button {
   font-size: 12px;
+}
+.toolbar select {
+  width: auto;
+  padding: 1px 4px;
+  font-size: 12px;
+}
+.menu-wrap {
+  position: relative;
+}
+.menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  min-width: 120px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.15);
+}
+.menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+}
+.menu button:hover {
+  background: var(--bg);
+}
+.menu .danger {
+  color: var(--danger);
 }
 .empty {
   position: absolute;

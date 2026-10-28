@@ -33,6 +33,16 @@
         <label><input type="checkbox" id="wire" /> 线框</label>
         <label><input type="checkbox" id="gridToggle" checked /> 地面网格</label>
         <button id="reset">重置视角</button>
+        <label id="animWrap" hidden>动画 <select id="anim"></select></label>
+      </div>
+      <div class="toolbar right" id="modelActions" hidden>
+        <button id="openPage">Polyfork 页面</button>
+        <div class="menu-wrap">
+          <button id="more" title="更多">···</button>
+          <div class="menu" id="moreMenu" hidden>
+            <button id="remove" class="danger">删除</button>
+          </div>
+        </div>
       </div>
       <div class="empty" id="empty">加载中…</div>
     </main>

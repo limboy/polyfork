@@ -49,6 +49,8 @@ let mixer: THREE.AnimationMixer | null = null;
 let homeView: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null;
 let items: Asset[] = [];
 let activeId: string | null = null;
+// The model on screen and its animations, for the toolbars.
+let shown: { item: Asset; clips: THREE.AnimationClip[] } | null = null;
 
 function applyTheme() {
   scene.background = new THREE.Color(darkQuery.matches ? 0x1c1c1f : 0xeceae4);
@@ -140,40 +142,25 @@ async function show(item: Asset) {
   scene.add(current);
   applyWire();
   if (gltf.animations.length) {
-    // Not played until the user picks one in the info panel.
+    // Not played until the user picks one in the toolbar.
     mixer = new THREE.AnimationMixer(current);
   }
-  const size = frame(current);
-  let tris = 0;
-  current.traverse((o) => {
-    if (o instanceof THREE.Mesh) tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
-  });
-
-  const anims = gltf.animations.length
-    ? `<div class="meta">动画 <select id="anim"><option value="-1">（不播放）</option>${gltf.animations
-        .map((a, i) => `<option value="${i}">${esc(a.name || `动画 ${i + 1}`)}</option>`)
-        .join("")}</select></div>`
-    : "";
-  const info = $("info");
-  info.hidden = false;
-  info.innerHTML = `<h2>${esc(item.title)}</h2>
-    <div class="meta">${[item.class, item.kit].filter(Boolean).map((s) => esc(s!)).join(" · ")}</div>
-    <div class="meta">${Math.round(tris).toLocaleString()} 三角面 · ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} m${
-      item.bytes ? ` · ${(item.bytes / 1024 / 1024).toFixed(1)} MB` : ""
-    }</div>
-    ${anims}
-    <div class="links">
-      <button class="link" id="openPage">Polyfork 页面</button>
-      <button class="link danger" id="remove">删除</button>
-    </div>`;
-  $("openPage").onclick = () => Library.openPage(item.id);
-  $("remove").onclick = () => remove(item);
-  $("anim")?.addEventListener("change", (e) => {
-    mixer!.stopAllAction();
-    const i = Number((e.target as HTMLSelectElement).value);
-    if (i >= 0) mixer!.clipAction(gltf.animations[i]!).play();
-  });
+  frame(current);
+  setShown({ item, clips: gltf.animations });
   setEmpty(null);
+}
+
+function setShown(s: typeof shown) {
+  shown = s;
+  $("info").hidden = !s;
+  $("modelActions").hidden = !s;
+  $("moreMenu").hidden = true;
+  $("animWrap").hidden = !s?.clips.length;
+  if (!s) return;
+  $("info").innerHTML = `<h2>${esc(s.item.title)}</h2>`;
+  $("anim").innerHTML =
+    `<option value="-1">不播放</option>` +
+    s.clips.map((a, i) => `<option value="${i}">${esc(a.name || `动画 ${i + 1}`)}</option>`).join("");
 }
 
 async function remove(item: Asset) {
@@ -183,7 +170,7 @@ async function remove(item: Asset) {
   await Library.remove(item.id);
   if (current) scene.remove(current);
   current = null;
-  $("info").hidden = true;
+  setShown(null);
   await reload(next?.id);
 }
 
@@ -321,6 +308,24 @@ $("reset").onclick = () => {
   camera.position.copy(homeView.pos);
   controls.target.copy(homeView.target);
 };
+$("anim").onchange = (e) => {
+  if (!mixer || !shown) return;
+  mixer.stopAllAction();
+  const clip = shown.clips[Number((e.target as HTMLSelectElement).value)];
+  if (clip) mixer.clipAction(clip).play();
+};
+$("openPage").onclick = () => shown && Library.openPage(shown.item.id);
+$("more").onclick = (e) => {
+  e.stopPropagation();
+  $("moreMenu").hidden = !$("moreMenu").hidden;
+};
+$("remove").onclick = () => {
+  $("moreMenu").hidden = true;
+  if (shown) remove(shown.item);
+};
+addEventListener("click", (e) => {
+  if (!(e.target as HTMLElement).closest(".menu-wrap")) $("moreMenu").hidden = true;
+});
 $("openDownload").onclick = openDownload;
 $("openFolder").onclick = () => Library.openFolder();
 addEventListener("keydown", (e) => {
