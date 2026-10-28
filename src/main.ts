@@ -368,48 +368,40 @@ function upSync() {
   $("upStart").textContent = n ? `开始更新（${n} 个）` : "开始更新";
 }
 
+// Bumped on each check, so that a check the user walked away from does not
+// fill the dialog of a later one.
+let checkRun = 0;
+let compared = false;
+
 async function openUpdates() {
   if (updating) return upDialog.showModal();
+  const run = ++checkRun;
   updates = null;
+  compared = false;
   upError(null);
   $("upChoices").hidden = true;
   $("upProgress").hidden = true;
   $("upStatus").textContent = "正在读取网站目录…";
   upSync();
   upDialog.showModal();
-
-  updating = new AbortController();
-  $("upCancel").textContent = "停止";
-  const progress = new Channel<CheckProgress>();
-  updating.signal.addEventListener("abort", () => progress.close());
-  const done = Library.checkUpdates(progress);
   try {
-    for await (const p of progress) {
-      if (updating.signal.aborted) break;
-      if (p.stage === "compare") {
-        $("upStatus").textContent = "正在比对已下载的模型…";
-        upBar(p.done, p.total, `${p.done} / ${p.total}`);
-      }
-    }
-    updates = await done;
+    const u = await Library.checkUpdates();
+    if (run !== checkRun) return;
+    updates = u;
   } catch (err) {
-    if (!updating.signal.aborted) upError(String(err));
-  } finally {
-    updating = null;
-    $("upCancel").textContent = "关闭";
-    $("upProgress").hidden = true;
-  }
-  if (!updates) {
-    $("upStatus").textContent = "已停止";
+    if (run === checkRun) upError(String(err));
     return;
   }
+  renderUpdates();
+}
 
-  const u = updates;
+function renderUpdates() {
+  const u = updates!;
   const inKit = u.new.filter((n) => n.inKit).length;
   const other = u.new.length - inKit;
   const avg = catalog && catalog.total ? catalog.bytes / catalog.total : 0;
   const rows: [string, number, string][] = [
-    ["upChanged", u.changed.length, `更新 ${u.changed.length} 个网站上有改动的模型`],
+    ["upChanged", compared ? u.changed.length : 0, `更新 ${u.changed.length} 个网站上有改动的模型`],
     ["upInKit", inKit, `下载已有套件里新增的 ${inKit} 个模型`],
     ["upOther", other, `下载其他 ${other.toLocaleString()} 个新模型${avg ? `（约 ${gb(avg * other)}）` : ""}`],
   ];
@@ -419,10 +411,45 @@ async function openUpdates() {
   }
   $("upGone").hidden = u.gone === 0;
   $("upGone").textContent = `另有 ${u.gone} 个模型网站上已经没有了，本地的保留不动。`;
-  const nothing = u.changed.length === 0 && u.new.length === 0;
-  $("upStatus").textContent = nothing ? "所有模型都是最新的。" : `已下载的 ${items.length} 个模型比对完毕。`;
-  $("upChoices").hidden = nothing && u.gone === 0;
+
+  // Comparing takes a request per model, about 0.9 s each, checkWorkers (24) at a time.
+  const minutes = Math.max(1, Math.round((items.length * 0.9) / 24 / 60));
+  $("upCompareRow").hidden = compared || items.length === 0;
+  $("upCompareText").textContent = `已下载的 ${items.length.toLocaleString()} 个模型是否有改动：未比对（约 ${minutes} 分钟）`;
+
+  const news = u.new.length ? `网站上有 ${u.new.length.toLocaleString()} 个你还没有的模型。` : "没有新模型。";
+  const changes = compared ? (u.changed.length ? "" : "已下载的模型都是最新的。") : "";
+  $("upStatus").textContent = news + changes;
+  $("upChoices").hidden = false;
   upSync();
+}
+
+async function compareChanged() {
+  if (!updates || updating) return;
+  upError(null);
+  updating = new AbortController();
+  upSync();
+  $("upCancel").textContent = "停止";
+  $("upCompareRow").hidden = true;
+  upBar(0, items.length, "正在比对已下载的模型…");
+  const progress = new Channel<CheckProgress>();
+  updating.signal.addEventListener("abort", () => progress.close());
+  const done = Library.checkChanged(progress);
+  try {
+    for await (const p of progress) {
+      if (updating.signal.aborted) break;
+      upBar(p.done, p.total, `正在比对已下载的模型… ${p.done.toLocaleString()} / ${p.total.toLocaleString()}`);
+    }
+    updates.changed = await done;
+    compared = true;
+  } catch (err) {
+    if (!updating.signal.aborted) upError(String(err));
+  } finally {
+    updating = null;
+    $("upCancel").textContent = "关闭";
+    $("upProgress").hidden = true;
+    renderUpdates();
+  }
 }
 
 $("updatesForm").addEventListener("submit", async (e) => {
@@ -467,6 +494,7 @@ $("upCancel").onclick = () => {
   else upDialog.close();
 };
 for (const id of ["upChanged", "upInKit", "upOther"]) $(id).addEventListener("change", upSync);
+$("upCompare").onclick = compareChanged;
 
 // --- wiring ---
 

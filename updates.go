@@ -18,7 +18,8 @@ import (
 
 // Updates is what polyfork.dev has that the library does not.
 type Updates struct {
-	// Changed lists downloaded models whose file on the site differs.
+	// Changed lists downloaded models whose file on the site differs; it
+	// is empty until CheckChanged fills it.
 	Changed []UpdateItem `json:"changed"`
 	// New lists models the library does not have; InKit marks those in a
 	// kit the library already has models of.
@@ -37,16 +38,19 @@ type UpdateItem struct {
 
 // CheckProgress reports an update check in progress.
 type CheckProgress struct {
-	Stage string `json:"stage"` // "list" while reading the catalogue, "compare" while checking files
+	Stage string `json:"stage"` // "compare" while checking files
 	Done  int    `json:"done"`
 	Total int    `json:"total"`
 }
 
-// CheckUpdates compares the library with polyfork.dev. A model counts as
-// changed when the ETag of its GLB, which is the MD5 of the file, differs
-// from the MD5 of the downloaded file.
-func (l *Library) CheckUpdates(ctx context.Context, progress *mygo.Channel[CheckProgress]) (Updates, error) {
-	progress.Send(CheckProgress{Stage: "list"})
+// checkWorkers is how many HEAD requests CheckChanged makes at once: the
+// CDN takes most of a second to answer each.
+const checkWorkers = 24
+
+// CheckUpdates reads the catalogue on polyfork.dev and lists the models the
+// library lacks and the downloaded ones the site no longer lists. It does
+// not look at files: CheckChanged does.
+func (l *Library) CheckUpdates(ctx context.Context) (Updates, error) {
 	remote, err := l.search(ctx, DownloadOptions{})
 	if err != nil {
 		return Updates{}, err
@@ -57,46 +61,55 @@ func (l *Library) CheckUpdates(ctx context.Context, progress *mygo.Channel[Check
 		return Updates{}, err
 	}
 
-	have := map[string]Asset{}
+	have := map[string]bool{}
 	kits := map[string]bool{}
 	for _, a := range local {
-		have[a.ID] = a
+		have[a.ID] = true
 		if a.Kit != "" {
 			kits[a.Kit] = true
 		}
 	}
-	var u Updates
+	u := Updates{Changed: []UpdateItem{}, New: []UpdateItem{}}
 	onSite := map[string]bool{}
-	var check []Asset
 	for _, r := range remote {
 		onSite[r.ID] = true
-		if a, ok := have[r.ID]; ok {
-			check = append(check, a)
-			continue
+		if !have[r.ID] {
+			u.New = append(u.New, UpdateItem{ID: r.ID, Title: r.Title, Kit: r.Kit, InKit: kits[r.Kit]})
 		}
-		u.New = append(u.New, UpdateItem{ID: r.ID, Title: r.Title, Kit: r.Kit, InKit: kits[r.Kit]})
 	}
 	for _, a := range local {
 		if !onSite[a.ID] {
 			u.Gone++
 		}
 	}
+	return u, nil
+}
 
+// CheckChanged lists the downloaded models whose file on polyfork.dev
+// differs from theirs. The ETag of a GLB on the CDN is the MD5 of the file,
+// so a HEAD request and a hash of the local file tell, without
+// downloading; it takes a request per model.
+func (l *Library) CheckChanged(ctx context.Context, progress *mygo.Channel[CheckProgress]) ([]UpdateItem, error) {
+	check, err := l.List()
+	if err != nil {
+		return nil, err
+	}
 	var (
-		mu   sync.Mutex
-		done int
-		wg   sync.WaitGroup
-		jobs = make(chan Asset)
+		mu      sync.Mutex
+		done    int
+		changed = []UpdateItem{}
+		wg      sync.WaitGroup
+		jobs    = make(chan Asset)
 	)
 	progress.Send(CheckProgress{Stage: "compare", Total: len(check)})
-	for range 8 {
+	for range checkWorkers {
 		wg.Go(func() {
 			for a := range jobs {
-				changed := l.changed(ctx, a)
+				c := l.changed(ctx, a)
 				mu.Lock()
 				done++
-				if changed {
-					u.Changed = append(u.Changed, UpdateItem{ID: a.ID, Title: a.Title, Kit: a.Kit})
+				if c {
+					changed = append(changed, UpdateItem{ID: a.ID, Title: a.Title, Kit: a.Kit})
 				}
 				if done%20 == 0 || done == len(check) {
 					progress.Send(CheckProgress{Stage: "compare", Done: done, Total: len(check)})
@@ -116,7 +129,7 @@ func (l *Library) CheckUpdates(ctx context.Context, progress *mygo.Channel[Check
 	}
 	close(jobs)
 	wg.Wait()
-	return u, ctx.Err()
+	return changed, ctx.Err()
 }
 
 // Update downloads ids again, replacing the files the library has, or for

@@ -37,7 +37,7 @@ export interface Catalog {
 
 /** CheckProgress reports an update check in progress. */
 export interface CheckProgress {
-  /** "list" while reading the catalogue, "compare" while checking files */
+  /** "compare" while checking files */
   stage: string;
   done: number;
   total: number;
@@ -90,7 +90,10 @@ export interface UpdateItem {
 
 /** Updates is what polyfork.dev has that the library does not. */
 export interface Updates {
-  /** Changed lists downloaded models whose file on the site differs. */
+  /**
+   * Changed lists downloaded models whose file on the site differs; it
+   * is empty until CheckChanged fills it.
+   */
   changed: UpdateItem[];
   /**
    * New lists models the library does not have; InKit marks those in a
@@ -116,12 +119,21 @@ export const Library = {
     return call("Library.Catalog");
   },
   /**
-   * CheckUpdates compares the library with polyfork.dev. A model counts as
-   * changed when the ETag of its GLB, which is the MD5 of the file, differs
-   * from the MD5 of the downloaded file.
+   * CheckChanged lists the downloaded models whose file on polyfork.dev
+   * differs from theirs. The ETag of a GLB on the CDN is the MD5 of the file,
+   * so a HEAD request and a hash of the local file tell, without
+   * downloading; it takes a request per model.
    */
-  checkUpdates(progress: Channel<CheckProgress>): Promise<Updates> {
-    return call("Library.CheckUpdates", progress);
+  checkChanged(progress: Channel<CheckProgress>): Promise<UpdateItem[]> {
+    return call("Library.CheckChanged", progress);
+  },
+  /**
+   * CheckUpdates reads the catalogue on polyfork.dev and lists the models the
+   * library lacks and the downloaded ones the site no longer lists. It does
+   * not look at files: CheckChanged does.
+   */
+  checkUpdates(): Promise<Updates> {
+    return call("Library.CheckUpdates");
   },
   /**
    * Download fetches the assets opts selects, sending progress as each one

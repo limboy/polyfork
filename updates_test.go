@@ -26,12 +26,15 @@ func TestUpdates(t *testing.T) {
 	list, _ := l.List()
 	a := list[0]
 
-	u, err := l.CheckUpdates(ctx, &mygo.Channel[CheckProgress]{})
+	u, err := l.CheckUpdates(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(u.Changed) != 0 || u.Gone != 0 || len(u.New) < 100 {
-		t.Fatalf("fresh library: %d changed, %d gone, %d new", len(u.Changed), u.Gone, len(u.New))
+	if u.Gone != 0 || len(u.New) < 100 {
+		t.Fatalf("fresh library: %d gone, %d new", u.Gone, len(u.New))
+	}
+	if c, err := l.CheckChanged(ctx, &mygo.Channel[CheckProgress]{}); err != nil || len(c) != 0 {
+		t.Fatalf("fresh library: %v, %d changed", err, len(c))
 	}
 	for _, n := range u.New {
 		if n.ID == a.ID {
@@ -47,8 +50,9 @@ func TestUpdates(t *testing.T) {
 	}
 	f.Write([]byte{0})
 	f.Close()
-	if !l.changed(ctx, a) {
-		t.Fatalf("%s: a modified file is not reported as changed", a.ID)
+	c, err := l.CheckChanged(ctx, &mygo.Channel[CheckProgress]{})
+	if err != nil || len(c) != 1 || c[0].ID != a.ID {
+		t.Fatalf("after modifying %s: %v, %+v", a.ID, err, c)
 	}
 
 	if _, err := l.Update(ctx, []string{a.ID}, &mygo.Channel[Progress]{}); err != nil {
