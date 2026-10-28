@@ -140,9 +140,8 @@ async function show(item: Asset) {
   scene.add(current);
   applyWire();
   if (gltf.animations.length) {
+    // Not played until the user picks one in the info panel.
     mixer = new THREE.AnimationMixer(current);
-    mixer.clipAction(gltf.animations[0]!).play();
-    mixer.update(0);
   }
   const size = frame(current);
   let tris = 0;
@@ -151,9 +150,9 @@ async function show(item: Asset) {
   });
 
   const anims = gltf.animations.length
-    ? `<div class="meta">动画 <select id="anim">${gltf.animations
+    ? `<div class="meta">动画 <select id="anim"><option value="-1">（不播放）</option>${gltf.animations
         .map((a, i) => `<option value="${i}">${esc(a.name || `动画 ${i + 1}`)}</option>`)
-        .join("")}<option value="-1">（停止）</option></select></div>`
+        .join("")}</select></div>`
     : "";
   const info = $("info");
   info.hidden = false;
