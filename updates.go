@@ -151,6 +151,9 @@ func (l *Library) Update(ctx context.Context, ids []string, progress *mygo.Chann
 		}
 		remote = append(remote, r)
 	}
+	// The shared clips change as the site bakes more; refresh them with the
+	// models. The old copy keeps working if this fails.
+	l.fetchFile(ctx, clipsURL, clipsFile, true)
 	return l.fetchMany(ctx, remote, true, progress)
 }
 

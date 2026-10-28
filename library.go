@@ -21,6 +21,13 @@ import (
 
 const apiBase = "https://polyfork.dev/api"
 
+// Rigged characters ship without clips; the site plays these shared Mixamo
+// clips on any skeleton with Mixamo bone names.
+const (
+	clipsURL  = "https://polyfork.dev/anim/clips.json"
+	clipsFile = "clips.json"
+)
+
 // Library downloads free Polyfork assets and keeps them in a folder with a
 // manifest.json that lists them.
 type Library struct {
@@ -115,6 +122,15 @@ func (l *Library) Folder() string {
 		}
 	})
 	return l.dir
+}
+
+// Clips downloads the shared character clips into the library, unless they
+// are there already, and returns the file's name in it.
+func (l *Library) Clips(ctx context.Context) (string, error) {
+	if _, err := l.fetchFile(ctx, clipsURL, clipsFile, false); err != nil {
+		return "", err
+	}
+	return clipsFile, nil
 }
 
 // OpenFolder shows the models folder in Finder.

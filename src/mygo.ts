@@ -136,6 +136,13 @@ export const Library = {
     return call("Library.CheckUpdates");
   },
   /**
+   * Clips downloads the shared character clips into the library, unless they
+   * are there already, and returns the file's name in it.
+   */
+  clips(): Promise<string> {
+    return call("Library.Clips");
+  },
+  /**
    * Download fetches the assets opts selects, sending progress as each one
    * finishes, and returns how many are now in the library.
    */

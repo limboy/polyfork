@@ -47,6 +47,8 @@ const loader = new GLTFLoader();
 const timer = new THREE.Timer();
 let current: THREE.Object3D | null = null;
 let mixer: THREE.AnimationMixer | null = null;
+// The animated model as it loaded, to return to between clips.
+let restPose: [THREE.Object3D, THREE.Vector3, THREE.Quaternion, THREE.Vector3][] = [];
 let homeView: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null;
 let items: Asset[] = [];
 let activeId: string | null = null;
@@ -142,13 +144,81 @@ async function show(item: Asset) {
   });
   scene.add(current);
   applyWire();
-  if (gltf.animations.length) {
+  const shared = await sharedClipsFor(current);
+  if (activeId !== item.id) return;
+  // A model's own clip wins over a shared one of the same name.
+  const own = new Set(gltf.animations.map((a) => a.name));
+  const clips = [...gltf.animations, ...shared.filter((c) => !own.has(c.name))];
+  if (clips.length) {
     // Not played until the user picks one in the toolbar.
     mixer = new THREE.AnimationMixer(current);
+    restPose = [];
+    current.traverse((o) => restPose.push([o, o.position.clone(), o.quaternion.clone(), o.scale.clone()]));
   }
   frame(current);
-  setShown({ item, clips: gltf.animations });
+  setShown({ item, clips });
   setEmpty(null);
+}
+
+// --- shared character clips ---
+
+// The site's characters carry a Mixamo-named skeleton but no clips; it plays
+// one shared set of baked Mixamo clips on all of them (anim/clips.json). Each
+// clip holds a local quaternion per bone and the hips' travel, at 30 fps.
+type RawClip = { times: number[]; tracks: Record<string, number[]>; hips: number[] };
+let rawClips: Promise<Record<string, RawClip> | null> | null = null;
+const loadRawClips = (): Promise<Record<string, RawClip> | null> =>
+  (rawClips ??= Library.clips()
+    .then((name) => fetch(MODELS + name))
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => {
+      rawClips = null; // try again with the next character
+      return null;
+    }));
+
+// The basics first, as on the site; the rest alphabetically.
+const CLIP_ORDER = ["Idle", "Walk", "Run", "Agree", "Head shake"];
+const clipRank = (n: string) => (CLIP_ORDER.includes(n) ? CLIP_ORDER.indexOf(n) : CLIP_ORDER.length);
+
+// A bone named base, or base_N as GLTFLoader names a repeat.
+function findBone(root: THREE.Object3D, base: string) {
+  let found: THREE.Bone | null = null;
+  root.traverse((o) => {
+    if (!found && o instanceof THREE.Bone && (o.name === base || o.name.startsWith(base + "_"))) found = o;
+  });
+  return found as THREE.Bone | null;
+}
+
+// Retargets the shared clips onto every Mixamo skeleton in root, so a scene
+// of several characters moves together. Empty when root has none.
+async function sharedClipsFor(root: THREE.Object3D): Promise<THREE.AnimationClip[]> {
+  const hipsBones: THREE.Bone[] = [];
+  root.traverse((o) => {
+    if (o instanceof THREE.Bone && /^Hips(_\d+)?$/.test(o.name)) hipsBones.push(o);
+  });
+  const rigs = hipsBones.filter((h) => ["LeftUpLeg", "RightUpLeg", "LeftArm", "RightArm"].every((n) => findBone(h, n)));
+  if (!rigs.length) return [];
+  const raw = await loadRawClips();
+  if (!raw) return [];
+  return Object.keys(raw)
+    .sort((a, b) => clipRank(a) - clipRank(b) || a.localeCompare(b))
+    .map((name) => {
+      const clip = raw[name]!;
+      const tracks: THREE.KeyframeTrack[] = [];
+      for (const hips of rigs) {
+        for (const [base, values] of Object.entries(clip.tracks)) {
+          const bone = base === "Hips" ? hips : findBone(hips, base);
+          // By uuid: names repeat when a scene holds several characters.
+          if (bone && values.length) tracks.push(new THREE.QuaternionKeyframeTrack(bone.uuid + ".quaternion", clip.times, values));
+        }
+        // The hips' travel is baked for a 0.95 m hip height, as offsets from rest.
+        const rest = hips.position;
+        const k = (rest.y || 0.95) / 0.95;
+        const pos = clip.hips.map((v, i) => [rest.x, rest.y, rest.z][i % 3]! + v * k);
+        tracks.push(new THREE.VectorKeyframeTrack(hips.uuid + ".position", clip.times, pos));
+      }
+      return new THREE.AnimationClip(name, -1, tracks);
+    });
 }
 
 function setShown(s: typeof shown) {
@@ -520,6 +590,11 @@ $("reset").onclick = () => {
 $("anim").onchange = (e) => {
   if (!mixer || !shown) return;
   mixer.stopAllAction();
+  for (const [o, p, q, s] of restPose) {
+    o.position.copy(p);
+    o.quaternion.copy(q);
+    o.scale.copy(s);
+  }
   const clip = shown.clips[Number((e.target as HTMLSelectElement).value)];
   if (clip) mixer.clipAction(clip).play();
 };
