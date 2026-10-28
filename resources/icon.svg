@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8ec5ff"/>
+      <stop offset="1" stop-color="#3f6fd8"/>
+    </linearGradient>
+    <clipPath id="body"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <g clip-path="url(#body)">
+        <polygon points="276.0,714.0 512.0,832.0 512.0,882.0 276.0,764.0" fill="#a8693f" stroke="#a8693f" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="512.0,832.0 748.0,714.0 748.0,764.0 512.0,882.0" fill="#7d4a2b" stroke="#7d4a2b" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="512.0,596.0 748.0,714.0 522.0,710.0" fill="#7dc360" stroke="#7dc360" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="748.0,714.0 512.0,832.0 522.0,710.0" fill="#79bb5c" stroke="#79bb5c" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="512.0,832.0 276.0,714.0 522.0,710.0" fill="#7bbf5d" stroke="#7bbf5d" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="276.0,714.0 512.0,596.0 522.0,710.0" fill="#7fc661" stroke="#7fc661" stroke-width="1.6" stroke-linejoin="round"/>
+    <ellipse cx="534" cy="718" rx="112" ry="48" fill="#1d3a18" opacity="0.16"/>
+    <polygon points="488.0,714.0 512.0,726.0 512.0,560.0 494.0,554.0" fill="#c08a5a" stroke="#c08a5a" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="512.0,726.0 536.0,714.0 530.0,554.0 512.0,560.0" fill="#8a5a36" stroke="#8a5a36" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="512.0,199.5 397.8,246.6 441.4,318.8" fill="#8de261" stroke="#8de261" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="512.0,199.5 441.4,318.8 557.4,305.4" fill="#89db5e" stroke="#89db5e" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="512.0,199.5 557.4,305.4 626.2,246.6" fill="#77bf52" stroke="#77bf52" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="626.2,246.6 557.4,305.4 691.8,346.5" fill="#609a42" stroke="#609a42" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="557.4,305.4 441.4,318.8 500.2,396.1" fill="#86d75c" stroke="#86d75c" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="441.4,318.8 397.8,246.6 332.2,346.5" fill="#8ce261" stroke="#8ce261" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="441.4,318.8 332.2,346.5 500.2,396.1" fill="#77be52" stroke="#77be52" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="332.2,346.5 344.0,465.0 500.2,396.1" fill="#80cd58" stroke="#80cd58" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="344.0,465.0 449.8,481.8 500.2,396.1" fill="#85d55b" stroke="#85d55b" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="344.0,465.0 414.6,550.6 449.8,481.8" fill="#629e44" stroke="#629e44" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="414.6,550.6 512.0,572.5 449.8,481.8" fill="#4c7a34" stroke="#4c7a34" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="449.8,481.8 512.0,572.5 609.4,550.6" fill="#4c7a34" stroke="#4c7a34" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="449.8,481.8 609.4,550.6 594.3,454.9" fill="#4c7a34" stroke="#4c7a34" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="500.2,396.1 449.8,481.8 594.3,454.9" fill="#588e3d" stroke="#588e3d" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="500.2,396.1 594.3,454.9 557.4,305.4" fill="#65a245" stroke="#65a245" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="557.4,305.4 594.3,454.9 691.8,346.5" fill="#588d3d" stroke="#588d3d" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="691.8,346.5 594.3,454.9 680.0,465.0" fill="#4c7a34" stroke="#4c7a34" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="680.0,465.0 594.3,454.9 609.4,550.6" fill="#4c7a34" stroke="#4c7a34" stroke-width="1.6" stroke-linejoin="round"/>
+  </g>
+</svg>
