@@ -27,7 +27,7 @@ func TestFetch(t *testing.T) {
 	}
 	byID := map[string]Asset{}
 	for _, r := range remote {
-		a, _, err := l.fetchAsset(ctx, r, l.kitNames(ctx))
+		a, _, err := l.fetchAsset(ctx, r, l.kitNames(ctx), false)
 		if err != nil {
 			t.Fatal(err)
 		}

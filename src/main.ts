@@ -4,7 +4,7 @@ import { GLTFLoader, type GLTF } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { Channel } from "mygo-runtime";
 // Library and its types are generated from library.go by `mygo generate`.
-import { Library, type Asset, type Progress } from "./mygo";
+import { Library, type Asset, type CheckProgress, type Progress, type Updates } from "./mygo";
 import { CLASSES, classLabel, groupItems, kitLabel } from "./groups";
 
 // The Go side serves the models folder under this scheme (see main.go).
@@ -292,6 +292,8 @@ $("downloadForm").addEventListener("submit", async (e) => {
   };
   const progress = new Channel<Progress>();
   downloading = new AbortController();
+  // Closing the channel cancels the Go side's context at once.
+  downloading.signal.addEventListener("abort", () => progress.close());
   $<HTMLButtonElement>("dlStart").disabled = true;
   $("dlCancel").textContent = "停止";
   $("dlProgress").hidden = false;
@@ -321,11 +323,144 @@ $("downloadForm").addEventListener("submit", async (e) => {
 
 $("dlCancel").onclick = () => {
   if (downloading) {
-    // Leaving the channel makes Send fail on the Go side, which stops the download.
     downloading.abort();
     $("dlStatus").textContent = "已停止";
   } else dialog.close();
 };
+
+// --- updates ---
+
+const upDialog = $<HTMLDialogElement>("updates");
+let updates: Updates | null = null;
+let updating: AbortController | null = null;
+
+function upError(msg: string | null) {
+  $("upError").hidden = msg === null;
+  $("upError").textContent = msg ?? "";
+}
+
+function upBar(done: number, total: number, text: string) {
+  $("upProgress").hidden = false;
+  $("upBar").style.width = total ? `${(done / total) * 100}%` : "0";
+  $("upProgressText").textContent = text;
+}
+
+// The ids the checked boxes select.
+function upSelection() {
+  if (!updates) return [];
+  const ids: string[] = [];
+  if ($<HTMLInputElement>("upChanged").checked) ids.push(...updates.changed.map((i) => i.id));
+  for (const n of updates.new) {
+    if (n.inKit ? $<HTMLInputElement>("upInKit").checked : $<HTMLInputElement>("upOther").checked) ids.push(n.id);
+  }
+  return ids;
+}
+
+function upSync() {
+  const n = upSelection().length;
+  $<HTMLButtonElement>("upStart").disabled = n === 0 || !!updating;
+  $("upStart").textContent = n ? `开始更新（${n} 个）` : "开始更新";
+}
+
+async function openUpdates() {
+  if (updating) return upDialog.showModal();
+  updates = null;
+  upError(null);
+  $("upChoices").hidden = true;
+  $("upProgress").hidden = true;
+  $("upStatus").textContent = "正在读取网站目录…";
+  upSync();
+  upDialog.showModal();
+
+  updating = new AbortController();
+  $("upCancel").textContent = "停止";
+  const progress = new Channel<CheckProgress>();
+  updating.signal.addEventListener("abort", () => progress.close());
+  const done = Library.checkUpdates(progress);
+  try {
+    for await (const p of progress) {
+      if (updating.signal.aborted) break;
+      if (p.stage === "compare") {
+        $("upStatus").textContent = "正在比对已下载的模型…";
+        upBar(p.done, p.total, `${p.done} / ${p.total}`);
+      }
+    }
+    updates = await done;
+  } catch (err) {
+    if (!updating.signal.aborted) upError(String(err));
+  } finally {
+    updating = null;
+    $("upCancel").textContent = "关闭";
+    $("upProgress").hidden = true;
+  }
+  if (!updates) {
+    $("upStatus").textContent = "已停止";
+    return;
+  }
+
+  const u = updates;
+  const inKit = u.new.filter((n) => n.inKit).length;
+  const other = u.new.length - inKit;
+  const avg = catalog && catalog.total ? catalog.bytes / catalog.total : 0;
+  const rows: [string, number, string][] = [
+    ["upChanged", u.changed.length, `更新 ${u.changed.length} 个网站上有改动的模型`],
+    ["upInKit", inKit, `下载已有套件里新增的 ${inKit} 个模型`],
+    ["upOther", other, `下载其他 ${other.toLocaleString()} 个新模型${avg ? `（约 ${gb(avg * other)}）` : ""}`],
+  ];
+  for (const [id, n, text] of rows) {
+    $(id).closest("label")!.hidden = n === 0;
+    $(id + "Text").textContent = text;
+  }
+  $("upGone").hidden = u.gone === 0;
+  $("upGone").textContent = `另有 ${u.gone} 个模型网站上已经没有了，本地的保留不动。`;
+  const nothing = u.changed.length === 0 && u.new.length === 0;
+  $("upStatus").textContent = nothing ? "所有模型都是最新的。" : `已下载的 ${items.length} 个模型比对完毕。`;
+  $("upChoices").hidden = nothing && u.gone === 0;
+  upSync();
+}
+
+$("updatesForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const ids = upSelection();
+  if (!ids.length || updating) return;
+  upError(null);
+  updating = new AbortController();
+  upSync();
+  $("upCancel").textContent = "停止";
+  upBar(0, ids.length, "开始下载…");
+  const failed: string[] = [];
+  const progress = new Channel<Progress>();
+  updating.signal.addEventListener("abort", () => progress.close());
+  const done = Library.update(ids, progress);
+  try {
+    for await (const p of progress) {
+      if (updating.signal.aborted) break;
+      if (p.error) failed.push(p.title || p.id || "");
+      if (p.id) upBar(p.done, p.total, `${p.done} / ${p.total} · ${p.title}`);
+    }
+    await done;
+    $("upStatus").textContent = `更新完成${failed.length ? `，${failed.length} 个失败` : ""}。`;
+    if (failed.length) upError(`失败：${failed.slice(0, 10).join("、")}${failed.length > 10 ? ` 等 ${failed.length} 个` : ""}`);
+    $("upChoices").hidden = true;
+    updates = null;
+  } catch (err) {
+    if (!updating.signal.aborted) upError(String(err));
+  } finally {
+    updating = null;
+    $("upCancel").textContent = "关闭";
+    upSync();
+    // Reload the model on screen too, in case it was one of those updated.
+    if (current) scene.remove(current);
+    current = null;
+    await reload();
+  }
+});
+
+$("upCancel").onclick = () => {
+  if (updating) updating.abort();
+  else upDialog.close();
+};
+for (const id of ["upChanged", "upInKit", "upOther"]) $(id).addEventListener("change", upSync);
 
 // --- wiring ---
 
@@ -368,8 +503,13 @@ window.addEventListener("click", (e) => {
 });
 $("openDownload").onclick = openDownload;
 $("openFolder").onclick = () => Library.openFolder();
+$("openUpdates").onclick = () => {
+  // The size estimate in the dialog needs the catalogue's numbers.
+  if (!catalog) Library.catalog().then((c) => (catalog = c)).catch(() => {});
+  openUpdates();
+};
 window.addEventListener("keydown", (e) => {
-  if (dialog.open || (e.target as HTMLElement).tagName === "INPUT" || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+  if (dialog.open || upDialog.open || (e.target as HTMLElement).tagName === "INPUT" || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
   const cards = [...document.querySelectorAll<HTMLElement>(".card")];
   if (!cards.length) return;
   const idx = cards.findIndex((c) => c.dataset.id === activeId);

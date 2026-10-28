@@ -309,6 +309,15 @@ dialog label.check span {
   color: var(--muted);
   font-size: 12px;
 }
+#upChoices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#upChoices label.check span {
+  color: var(--text);
+  font-size: 13px;
+}
 dialog label:has(:disabled) {
   opacity: 0.45;
 }

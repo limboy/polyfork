@@ -31,6 +31,12 @@ type Library struct {
 
 	kitMu     sync.Mutex
 	kitTitles map[string]string
+
+	remoteMu sync.Mutex
+	remote   map[string]remoteAsset // the catalogue as CheckUpdates last read it
+
+	sumMu sync.Mutex
+	sums  map[string]fileSum
 }
 
 // NewLibrary returns a library stored in the app's user data folder.
@@ -156,7 +162,6 @@ func (l *Library) Download(ctx context.Context, opts DownloadOptions, progress *
 	if opts.All {
 		opts = DownloadOptions{All: true}
 	}
-	titles := l.kitNames(ctx)
 	remote, err := l.search(ctx, opts)
 	if err != nil {
 		return 0, err
@@ -165,6 +170,14 @@ func (l *Library) Download(ctx context.Context, opts DownloadOptions, progress *
 		return 0, errors.New("no assets match")
 	}
 
+	return l.fetchMany(ctx, remote, false, progress)
+}
+
+// fetchMany downloads remote with a few workers, sending progress as each
+// one finishes, records them in the manifest and returns how many models
+// the library has. force downloads files that are there already.
+func (l *Library) fetchMany(ctx context.Context, remote []remoteAsset, force bool, progress *mygo.Channel[Progress]) (int, error) {
+	titles := l.kitNames(ctx)
 	var (
 		sendMu sync.Mutex
 		done   int
@@ -176,7 +189,7 @@ func (l *Library) Download(ctx context.Context, opts DownloadOptions, progress *
 	for range 4 {
 		wg.Go(func() {
 			for r := range jobs {
-				a, cached, err := l.fetchAsset(ctx, r, titles)
+				a, cached, err := l.fetchAsset(ctx, r, titles, force)
 				sendMu.Lock()
 				done++
 				p := Progress{Done: done, Total: len(remote), ID: r.ID, Title: r.Title, Cached: cached}
@@ -415,7 +428,7 @@ func (r remoteAsset) asset(titles map[string]string) Asset {
 	}
 }
 
-func (l *Library) fetchAsset(ctx context.Context, r remoteAsset, titles map[string]string) (Asset, bool, error) {
+func (l *Library) fetchAsset(ctx context.Context, r remoteAsset, titles map[string]string, force bool) (Asset, bool, error) {
 	glbURL := r.Download.GLB
 	if glbURL == "" {
 		glbURL = "https://polyfork.dev/cdn/" + url.PathEscape(r.ID) + ".glb"
@@ -425,11 +438,11 @@ func (l *Library) fetchAsset(ctx context.Context, r remoteAsset, titles map[stri
 		thumbURL = "https://polyfork.dev/files/" + url.PathEscape(r.ID) + "/renders/hero.png"
 	}
 	a := r.asset(titles)
-	cached, err := l.fetchFile(ctx, glbURL, a.GLB)
+	cached, err := l.fetchFile(ctx, glbURL, a.GLB, force)
 	if err != nil {
 		return a, false, err
 	}
-	if _, err := l.fetchFile(ctx, thumbURL, r.ID+".png"); err == nil {
+	if _, err := l.fetchFile(ctx, thumbURL, r.ID+".png", force); err == nil {
 		a.Thumb = r.ID + ".png"
 	}
 	if fi, err := os.Stat(filepath.Join(l.Folder(), a.GLB)); err == nil {
@@ -438,10 +451,11 @@ func (l *Library) fetchAsset(ctx context.Context, r remoteAsset, titles map[stri
 	return a, cached, nil
 }
 
-// fetchFile downloads src to name in the library, unless it is there already.
-func (l *Library) fetchFile(ctx context.Context, src, name string) (cached bool, err error) {
+// fetchFile downloads src to name in the library, unless it is there
+// already and force is false.
+func (l *Library) fetchFile(ctx context.Context, src, name string, force bool) (cached bool, err error) {
 	dest := filepath.Join(l.Folder(), name)
-	if fi, err := os.Stat(dest); err == nil && fi.Size() > 0 {
+	if fi, err := os.Stat(dest); err == nil && fi.Size() > 0 && !force {
 		return true, nil
 	}
 	resp, err := l.get(ctx, src)
@@ -467,7 +481,11 @@ func (l *Library) fetchFile(ctx context.Context, src, name string) (cached bool,
 }
 
 func (l *Library) get(ctx context.Context, u string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	return l.do(ctx, "GET", u)
+}
+
+func (l *Library) do(ctx context.Context, method, u string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, u, nil)
 	if err != nil {
 		return nil, err
 	}

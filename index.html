@@ -29,7 +29,10 @@
         </div>
         <div class="row count">
           <span id="count"></span>
-          <button id="openFolder" class="link">打开文件夹</button>
+          <span class="row">
+            <button id="openUpdates" class="link">检查更新</button>
+            <button id="openFolder" class="link">打开文件夹</button>
+          </span>
         </div>
       </div>
       <div class="grid" id="grid"></div>
@@ -76,6 +79,28 @@
         <div class="actions">
           <button type="button" id="dlCancel">关闭</button>
           <button type="submit" id="dlStart" class="primary">开始下载</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="updates">
+      <form id="updatesForm" method="dialog">
+        <h2>检查更新</h2>
+        <p class="muted" id="upStatus">正在读取网站目录…</p>
+        <div id="upChoices" hidden>
+          <label class="check"><input type="checkbox" id="upChanged" checked /> <span id="upChangedText"></span></label>
+          <label class="check"><input type="checkbox" id="upInKit" checked /> <span id="upInKitText"></span></label>
+          <label class="check"><input type="checkbox" id="upOther" /> <span id="upOtherText"></span></label>
+          <p class="muted" id="upGone" hidden></p>
+        </div>
+        <div class="progress" id="upProgress" hidden>
+          <div class="bar"><div id="upBar"></div></div>
+          <div class="muted" id="upProgressText"></div>
+        </div>
+        <div class="error" id="upError" hidden></div>
+        <div class="actions">
+          <button type="button" id="upCancel">关闭</button>
+          <button type="submit" id="upStart" class="primary" disabled>开始更新</button>
         </div>
       </form>
     </dialog>

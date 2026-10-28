@@ -35,6 +35,14 @@ export interface Catalog {
   bytes: number;
 }
 
+/** CheckProgress reports an update check in progress. */
+export interface CheckProgress {
+  /** "list" while reading the catalogue, "compare" while checking files */
+  stage: string;
+  done: number;
+  total: number;
+}
+
 /**
  * DownloadOptions selects which assets to download. At least one field
  * must be set; All selects the whole free catalogue.
@@ -72,6 +80,27 @@ export interface Size {
   z: number;
 }
 
+/** UpdateItem is a model in Updates. */
+export interface UpdateItem {
+  id: string;
+  title: string;
+  kit?: string;
+  inKit?: boolean;
+}
+
+/** Updates is what polyfork.dev has that the library does not. */
+export interface Updates {
+  /** Changed lists downloaded models whose file on the site differs. */
+  changed: UpdateItem[];
+  /**
+   * New lists models the library does not have; InKit marks those in a
+   * kit the library already has models of.
+   */
+  new: UpdateItem[];
+  /** Gone counts downloaded models the site no longer lists. */
+  gone: number;
+}
+
 // ---- Services ----
 
 /**
@@ -85,6 +114,14 @@ export const Library = {
    */
   catalog(): Promise<Catalog> {
     return call("Library.Catalog");
+  },
+  /**
+   * CheckUpdates compares the library with polyfork.dev. A model counts as
+   * changed when the ETag of its GLB, which is the MD5 of the file, differs
+   * from the MD5 of the downloaded file.
+   */
+  checkUpdates(progress: Channel<CheckProgress>): Promise<Updates> {
+    return call("Library.CheckUpdates", progress);
   },
   /**
    * Download fetches the assets opts selects, sending progress as each one
@@ -127,5 +164,12 @@ export const Library = {
   /** Remove deletes a downloaded model. */
   remove(id: string): Promise<void> {
     return call("Library.Remove", id);
+  },
+  /**
+   * Update downloads ids again, replacing the files the library has, or for
+   * the first time.
+   */
+  update(ids: string[], progress: Channel<Progress>): Promise<number> {
+    return call("Library.Update", ids, progress);
   },
 } as const;
