@@ -4,7 +4,4 @@ node_modules/
 /.mygo/
 mygo_windows_*.syso
 
-# Leftovers from the browser prototype; the app keeps its models in Application Support
-/models/
-/download.py
 .DS_Store
