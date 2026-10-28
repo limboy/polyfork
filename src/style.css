@@ -1,0 +1,287 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f4f3ef;
+  --panel: #fff;
+  --line: #e3e1da;
+  --text: #222;
+  --muted: #888;
+  --accent: var(--mygo-accent, #2f6fde);
+  --danger: #d33;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #18181a;
+    --panel: #222225;
+    --line: #333;
+    --text: #eee;
+    --muted: #999;
+    --danger: #f66;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+[hidden] {
+  display: none !important;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  display: flex;
+  font: 13px/1.4 system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  user-select: none;
+  -webkit-user-select: none;
+}
+input,
+select,
+button {
+  font: inherit;
+  color: var(--text);
+}
+input,
+select {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+button {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  cursor: pointer;
+  white-space: nowrap;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+button.link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.muted {
+  color: var(--muted);
+}
+
+aside {
+  width: 340px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+}
+.controls {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.count {
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+}
+.grid {
+  flex: 1;
+  overflow: auto;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: max-content;
+  gap: 8px;
+  align-content: start;
+}
+.card {
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.card.active {
+  border-color: var(--accent);
+}
+.card img,
+.card .ph {
+  width: 100%;
+  aspect-ratio: 1;
+  display: block;
+  object-fit: cover;
+}
+.card .ph {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 11px;
+}
+.card span {
+  display: block;
+  padding: 4px 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+main {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.info {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  max-width: 340px;
+}
+.info h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+.info .meta {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.info .meta select {
+  width: auto;
+  padding: 2px 6px;
+}
+.info .links {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+.info .links .danger {
+  color: var(--danger);
+}
+.toolbar {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.toolbar label {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.toolbar label input {
+  width: auto;
+}
+.toolbar button {
+  font-size: 12px;
+}
+.empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  text-align: center;
+  padding: 20px;
+  pointer-events: none;
+}
+.empty button {
+  pointer-events: auto;
+  margin-top: 10px;
+}
+
+dialog {
+  width: 420px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 20px;
+}
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.3);
+}
+dialog h2 {
+  margin: 0;
+  font-size: 16px;
+}
+dialog form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+dialog p {
+  margin: 0;
+}
+dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.progress .bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.progress .bar div {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+.progress .muted {
+  margin-top: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.error {
+  color: var(--danger);
+  font-size: 12px;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}

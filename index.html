@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Polyfork</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <aside>
+      <div class="controls">
+        <div class="row">
+          <input id="search" placeholder="搜索名称…" autocomplete="off" />
+          <button id="openDownload" class="primary" title="从 polyfork.dev 下载">＋ 下载</button>
+        </div>
+        <div class="row">
+          <select id="kit"><option value="">全部套件</option></select>
+          <select id="cls"><option value="">全部类别</option></select>
+        </div>
+        <div class="row count">
+          <span id="count"></span>
+          <button id="openFolder" class="link">打开文件夹</button>
+        </div>
+      </div>
+      <div class="grid" id="grid"></div>
+    </aside>
+
+    <main>
+      <canvas id="c"></canvas>
+      <div class="info" id="info" hidden></div>
+      <div class="toolbar">
+        <label><input type="checkbox" id="rotate" checked /> 自动旋转</label>
+        <label><input type="checkbox" id="wire" /> 线框</label>
+        <label><input type="checkbox" id="gridToggle" checked /> 地面网格</label>
+        <button id="reset">重置视角</button>
+      </div>
+      <div class="empty" id="empty">加载中…</div>
+    </main>
+
+    <dialog id="download">
+      <form id="downloadForm" method="dialog">
+        <h2>从 polyfork.dev 下载</h2>
+        <p class="muted">免费的低多边形模型，GLB 格式，不需要账号。至少选一项。</p>
+        <label>套件
+          <select id="dlKit"><option value="">（不限）</option></select>
+        </label>
+        <label>搜索词 <input id="dlQuery" placeholder="例如 tree、car、chair" autocomplete="off" /></label>
+        <label>类别 <input id="dlClass" placeholder="例如 animal、prop、vehicle" autocomplete="off" /></label>
+        <label>数量上限 <input id="dlLimit" type="number" min="0" placeholder="0 = 不限" /></label>
+        <div class="progress" id="dlProgress" hidden>
+          <div class="bar"><div id="dlBar"></div></div>
+          <div class="muted" id="dlStatus"></div>
+        </div>
+        <div class="error" id="dlError" hidden></div>
+        <div class="actions">
+          <button type="button" id="dlCancel">关闭</button>
+          <button type="submit" id="dlStart" class="primary">开始下载</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
