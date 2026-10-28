@@ -17,6 +17,16 @@
           <select id="kit"><option value="">全部套件</option></select>
           <select id="cls"><option value="">全部类别</option></select>
         </div>
+        <div class="row">
+          <select id="group" title="分组">
+            <option value="">不分组</option>
+            <option value="kit">按套件分组</option>
+            <option value="class">按类别分组</option>
+            <option value="size">按尺寸分组</option>
+            <option value="tris">按面数分组</option>
+            <option value="rig">按是否可动分组</option>
+          </select>
+        </div>
         <div class="row count">
           <span id="count"></span>
           <button id="openFolder" class="link">打开文件夹</button>
@@ -51,11 +61,12 @@
       <form id="downloadForm" method="dialog">
         <h2>从 polyfork.dev 下载</h2>
         <p class="muted">免费的低多边形模型，GLB 格式，不需要账号。至少选一项。</p>
+        <label class="check"><input type="checkbox" id="dlAll" /> 全部下载 <span id="dlAllInfo"></span></label>
         <label>套件
           <select id="dlKit"><option value="">（不限）</option></select>
         </label>
         <label>搜索词 <input id="dlQuery" placeholder="例如 tree、car、chair" autocomplete="off" /></label>
-        <label>类别 <input id="dlClass" placeholder="例如 animal、prop、vehicle" autocomplete="off" /></label>
+        <label>类别 <select id="dlClass"><option value="">（不限）</option></select></label>
         <label>数量上限 <input id="dlLimit" type="number" min="0" placeholder="0 = 不限" /></label>
         <div class="progress" id="dlProgress" hidden>
           <div class="bar"><div id="dlBar"></div></div>

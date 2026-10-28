@@ -28,6 +28,9 @@ type Library struct {
 	dir     string
 	mu      sync.Mutex
 	client  *http.Client
+
+	kitMu     sync.Mutex
+	kitTitles map[string]string
 }
 
 // NewLibrary returns a library stored in the app's user data folder.
@@ -41,13 +44,20 @@ type Asset struct {
 	Title     string `json:"title"`
 	Class     string `json:"class,omitempty"`
 	Kit       string `json:"kit,omitempty"`
+	KitTitle  string `json:"kit_title,omitempty"`
 	Triangles int    `json:"triangles,omitempty"`
 	Size      *Size  `json:"size_m,omitempty"`
+	Rigged    bool   `json:"rigged,omitempty"`
 	Page      string `json:"page,omitempty"`
 	GLB       string `json:"glb"`
 	Thumb     string `json:"thumb,omitempty"`
 	Bytes     int64  `json:"bytes,omitempty"`
+	// Meta is the version of the metadata above; entries below metaVersion
+	// are brought up to date by Refresh.
+	Meta int `json:"meta,omitempty"`
 }
+
+const metaVersion = 1
 
 // Size is an asset's bounding box in metres.
 type Size struct {
@@ -65,8 +75,9 @@ type Kit struct {
 }
 
 // DownloadOptions selects which assets to download. At least one field
-// must be set.
+// must be set; All selects the whole free catalogue.
 type DownloadOptions struct {
+	All   bool   `json:"all,omitempty"`
 	Kit   string `json:"kit,omitempty"`
 	Query string `json:"query,omitempty"`
 	Class string `json:"class,omitempty"`
@@ -139,9 +150,13 @@ func (l *Library) Kits(ctx context.Context) ([]Kit, error) {
 // Download fetches the assets opts selects, sending progress as each one
 // finishes, and returns how many are now in the library.
 func (l *Library) Download(ctx context.Context, opts DownloadOptions, progress *mygo.Channel[Progress]) (int, error) {
-	if opts.Kit == "" && opts.Query == "" && opts.Class == "" && opts.Limit <= 0 {
-		return 0, errors.New("choose a kit, a search, a class or a limit: the whole catalogue is about 4 GB")
+	if !opts.All && opts.Kit == "" && opts.Query == "" && opts.Class == "" && opts.Limit <= 0 {
+		return 0, errors.New("choose a kit, a search, a class or a limit, or download everything")
 	}
+	if opts.All {
+		opts = DownloadOptions{All: true}
+	}
+	titles := l.kitNames(ctx)
 	remote, err := l.search(ctx, opts)
 	if err != nil {
 		return 0, err
@@ -161,7 +176,7 @@ func (l *Library) Download(ctx context.Context, opts DownloadOptions, progress *
 	for range 4 {
 		wg.Go(func() {
 			for r := range jobs {
-				a, cached, err := l.fetchAsset(ctx, r)
+				a, cached, err := l.fetchAsset(ctx, r, titles)
 				sendMu.Lock()
 				done++
 				p := Progress{Done: done, Total: len(remote), ID: r.ID, Title: r.Title, Cached: cached}
@@ -206,6 +221,125 @@ func (l *Library) Download(ctx context.Context, opts DownloadOptions, progress *
 	return len(byID), ctx.Err()
 }
 
+// Catalog describes the whole free catalogue on polyfork.dev.
+type Catalog struct {
+	Total int `json:"total"`
+	// Bytes estimates the download from the average size of the models
+	// already in the library.
+	Bytes int64 `json:"bytes"`
+}
+
+// Catalog returns how many free assets polyfork.dev has and about how much
+// downloading all of them takes.
+func (l *Library) Catalog(ctx context.Context) (Catalog, error) {
+	var res struct {
+		Total int `json:"total"`
+	}
+	if err := l.getJSON(ctx, apiBase+"/assets?free=1&per_page=1&fields=compact", &res); err != nil {
+		return Catalog{}, err
+	}
+	avg := int64(1 << 20)
+	if all, err := l.List(); err == nil {
+		var sum, n int64
+		for _, a := range all {
+			if a.Bytes == 0 {
+				continue
+			}
+			sum += a.Bytes
+			n++
+			if a.Thumb != "" {
+				if fi, err := os.Stat(filepath.Join(l.Folder(), a.Thumb)); err == nil {
+					sum += fi.Size()
+				}
+			}
+		}
+		if n > 0 {
+			avg = sum / n
+		}
+	}
+	return Catalog{Total: res.Total, Bytes: avg * int64(res.Total)}, nil
+}
+
+// Refresh fetches the metadata of downloaded models whose entries are older
+// than this version of the app, and returns how many it updated.
+func (l *Library) Refresh(ctx context.Context) (int, error) {
+	l.mu.Lock()
+	all, err := l.readManifest()
+	l.mu.Unlock()
+	if err != nil {
+		return 0, err
+	}
+	var stale []Asset
+	for _, a := range all {
+		if a.Meta < metaVersion {
+			stale = append(stale, a)
+		}
+	}
+	if len(stale) == 0 {
+		return 0, nil
+	}
+	titles := l.kitNames(ctx)
+	fresh := make([]Asset, len(stale))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 4)
+	for i, a := range stale {
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			var r remoteAsset
+			if err := l.getJSON(ctx, apiBase+"/assets/"+url.PathEscape(a.ID), &r); err != nil || r.ID != a.ID {
+				return
+			}
+			n := r.asset(titles)
+			n.GLB, n.Thumb, n.Bytes = a.GLB, a.Thumb, a.Bytes
+			if n.Bytes == 0 {
+				if fi, err := os.Stat(filepath.Join(l.Folder(), a.GLB)); err == nil {
+					n.Bytes = fi.Size()
+				}
+			}
+			fresh[i] = n
+		})
+	}
+	wg.Wait()
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	all, err = l.readManifest()
+	if err != nil {
+		return 0, err
+	}
+	byID := map[string]Asset{}
+	for _, a := range all {
+		byID[a.ID] = a
+	}
+	updated := 0
+	for _, n := range fresh {
+		if _, ok := byID[n.ID]; ok && n.ID != "" {
+			byID[n.ID] = n
+			updated++
+		}
+	}
+	return updated, l.writeManifest(byID)
+}
+
+// kitNames maps kit ids to their titles, fetched once; it is empty when the
+// kits cannot be read.
+func (l *Library) kitNames(ctx context.Context) map[string]string {
+	l.kitMu.Lock()
+	defer l.kitMu.Unlock()
+	if l.kitTitles == nil {
+		kits, err := l.Kits(ctx)
+		if err != nil {
+			return map[string]string{}
+		}
+		l.kitTitles = map[string]string{}
+		for _, k := range kits {
+			l.kitTitles[k.ID] = k.Title
+		}
+	}
+	return l.kitTitles
+}
+
 // Remove deletes a downloaded model.
 func (l *Library) Remove(id string) error {
 	l.mu.Lock()
@@ -235,6 +369,7 @@ type remoteAsset struct {
 	Kit       string `json:"kit"`
 	Triangles int    `json:"triangles"`
 	Size      *Size  `json:"size_m"`
+	HasRig    bool   `json:"has_rig"`
 	Page      string `json:"page"`
 	Thumbnail string `json:"thumbnail"`
 	Download  struct {
@@ -273,7 +408,14 @@ func (l *Library) search(ctx context.Context, opts DownloadOptions) ([]remoteAss
 	return all, nil
 }
 
-func (l *Library) fetchAsset(ctx context.Context, r remoteAsset) (Asset, bool, error) {
+func (r remoteAsset) asset(titles map[string]string) Asset {
+	return Asset{
+		ID: r.ID, Title: r.Title, Class: r.Class, Kit: r.Kit, KitTitle: titles[r.Kit], Triangles: r.Triangles,
+		Size: r.Size, Rigged: r.HasRig, Page: r.Page, GLB: r.ID + ".glb", Meta: metaVersion,
+	}
+}
+
+func (l *Library) fetchAsset(ctx context.Context, r remoteAsset, titles map[string]string) (Asset, bool, error) {
 	glbURL := r.Download.GLB
 	if glbURL == "" {
 		glbURL = "https://polyfork.dev/cdn/" + url.PathEscape(r.ID) + ".glb"
@@ -282,10 +424,7 @@ func (l *Library) fetchAsset(ctx context.Context, r remoteAsset) (Asset, bool, e
 	if thumbURL == "" {
 		thumbURL = "https://polyfork.dev/files/" + url.PathEscape(r.ID) + "/renders/hero.png"
 	}
-	a := Asset{
-		ID: r.ID, Title: r.Title, Class: r.Class, Kit: r.Kit, Triangles: r.Triangles,
-		Size: r.Size, Page: r.Page, GLB: r.ID + ".glb",
-	}
+	a := r.asset(titles)
 	cached, err := l.fetchFile(ctx, glbURL, a.GLB)
 	if err != nil {
 		return a, false, err

@@ -5,6 +5,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { Channel } from "mygo-runtime";
 // Library and its types are generated from library.go by `mygo generate`.
 import { Library, type Asset, type Progress } from "./mygo";
+import { CLASSES, classLabel, groupItems, kitLabel } from "./groups";
 
 // The Go side serves the models folder under this scheme (see main.go).
 const MODELS = "models://localhost/";
@@ -185,35 +186,46 @@ function visible() {
   );
 }
 
+function card(i: Asset) {
+  const d = document.createElement("div");
+  d.className = "card" + (i.id === activeId ? " active" : "");
+  d.dataset.id = i.id;
+  d.innerHTML =
+    (i.thumb ? `<img loading="lazy" src="${MODELS + i.thumb}" alt="">` : `<div class="ph">无缩略图</div>`) +
+    `<span title="${esc(i.title)}">${esc(i.title)}</span>`;
+  d.onclick = () => show(i);
+  return d;
+}
+
 function render() {
   const list = visible();
   $("count").textContent = `${list.length} / ${items.length} 个模型`;
-  const grid = $("grid");
-  grid.replaceChildren(
-    ...list.map((i) => {
-      const d = document.createElement("div");
-      d.className = "card" + (i.id === activeId ? " active" : "");
-      d.dataset.id = i.id;
-      d.innerHTML =
-        (i.thumb ? `<img loading="lazy" src="${MODELS + i.thumb}" alt="">` : `<div class="ph">无缩略图</div>`) +
-        `<span title="${esc(i.title)}">${esc(i.title)}</span>`;
-      d.onclick = () => show(i);
-      return d;
+  const groups = groupItems(list, $<HTMLSelectElement>("group").value);
+  $("grid").replaceChildren(
+    ...groups.flatMap(({ label, items }) => {
+      if (label === null) return items.map(card);
+      const h = document.createElement("div");
+      h.className = "group";
+      h.innerHTML = `${esc(label)}<span>${items.length}</span>`;
+      return [h, ...items.map(card)];
     }),
   );
 }
 
-function fillSelect(el: HTMLSelectElement, values: (string | undefined)[]) {
+// fillSelect keeps the first option and the current choice, and lists the
+// distinct values after it, sorted by label.
+function fillSelect(el: HTMLSelectElement, options: [value: string, label: string][]) {
   const keep = el.value;
   el.length = 1;
-  [...new Set(values.filter(Boolean) as string[])].sort().forEach((v) => el.append(new Option(v, v)));
+  const seen = new Map(options.filter(([v]) => v));
+  [...seen].sort((a, b) => a[1].localeCompare(b[1])).forEach(([v, l]) => el.append(new Option(l, v)));
   el.value = keep;
 }
 
 async function reload(selectId?: string) {
   items = await Library.list();
-  fillSelect($("kit"), items.map((i) => i.kit));
-  fillSelect($("cls"), items.map((i) => i.class));
+  fillSelect($("kit"), items.map((i) => [i.kit ?? "", kitLabel(i)]));
+  fillSelect($("cls"), items.map((i) => [i.class ?? "", classLabel(i.class)]));
   render();
   if (!items.length) {
     activeId = null;
@@ -231,10 +243,25 @@ const dialog = $<HTMLDialogElement>("download");
 let kitsLoaded = false;
 let downloading: AbortController | null = null;
 
+let catalog: { total: number; bytes: number } | null = null;
+const gb = (bytes: number) => (bytes >= 1 << 30 ? `${(bytes / (1 << 30)).toFixed(1)} GB` : `${Math.round(bytes / (1 << 20))} MB`);
+
+function syncAll() {
+  const all = $<HTMLInputElement>("dlAll").checked;
+  for (const id of ["dlKit", "dlQuery", "dlClass", "dlLimit"]) $<HTMLInputElement>(id).disabled = all;
+}
+
 async function openDownload() {
   $("dlError").hidden = true;
   dialog.showModal();
+  Library.catalog()
+    .then((c) => {
+      catalog = c;
+      $("dlAllInfo").textContent = `（约 ${c.total.toLocaleString()} 个 · 约 ${gb(c.bytes)}）`;
+    })
+    .catch(() => {});
   if (kitsLoaded) return;
+  fillSelect($("dlClass"), Object.keys(CLASSES).map((c) => [c, classLabel(c)]));
   try {
     const kits = await Library.kits();
     const sel = $<HTMLSelectElement>("dlKit");
@@ -254,10 +281,13 @@ $("downloadForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (downloading) return;
   $("dlError").hidden = true;
+  const all = $<HTMLInputElement>("dlAll").checked;
+  if (all && !confirm(`将下载全部${catalog ? ` ${catalog.total.toLocaleString()} 个模型，约 ${gb(catalog.bytes)}` : "模型"}。已有的会跳过，中途可以停止。继续？`)) return;
   const opts = {
+    all: all || undefined,
     kit: $<HTMLSelectElement>("dlKit").value || undefined,
     query: $<HTMLInputElement>("dlQuery").value.trim() || undefined,
-    class: $<HTMLInputElement>("dlClass").value.trim() || undefined,
+    class: $<HTMLSelectElement>("dlClass").value || undefined,
     limit: Number($<HTMLInputElement>("dlLimit").value) || undefined,
   };
   const progress = new Channel<Progress>();
@@ -278,7 +308,7 @@ $("downloadForm").addEventListener("submit", async (e) => {
     }
     const total = await done;
     $("dlStatus").textContent = `完成，资料库里现在有 ${total} 个模型` + (failed.length ? `，${failed.length} 个失败` : "");
-    if (failed.length) showDlError(`失败：${failed.join("、")}`);
+    if (failed.length) showDlError(`失败：${failed.slice(0, 10).join("、")}${failed.length > 10 ? ` 等 ${failed.length} 个` : ""}`);
   } catch (err) {
     if (!downloading.signal.aborted) showDlError(String(err));
   } finally {
@@ -300,6 +330,16 @@ $("dlCancel").onclick = () => {
 // --- wiring ---
 
 ["search", "kit", "cls"].forEach((id) => $(id).addEventListener("input", render));
+$("group").addEventListener("input", () => {
+  try {
+    localStorage.setItem("group", $<HTMLSelectElement>("group").value);
+  } catch {}
+  render();
+});
+try {
+  $<HTMLSelectElement>("group").value = localStorage.getItem("group") ?? "kit";
+} catch {}
+$("dlAll").onchange = syncAll;
 $<HTMLInputElement>("rotate").onchange = (e) => (controls.autoRotate = (e.target as HTMLInputElement).checked);
 $("wire").onchange = applyWire;
 $<HTMLInputElement>("gridToggle").onchange = (e) => gridHelper && (gridHelper.visible = (e.target as HTMLInputElement).checked);
@@ -323,12 +363,12 @@ $("remove").onclick = () => {
   $("moreMenu").hidden = true;
   if (shown) remove(shown.item);
 };
-addEventListener("click", (e) => {
+window.addEventListener("click", (e) => {
   if (!(e.target as HTMLElement).closest(".menu-wrap")) $("moreMenu").hidden = true;
 });
 $("openDownload").onclick = openDownload;
 $("openFolder").onclick = () => Library.openFolder();
-addEventListener("keydown", (e) => {
+window.addEventListener("keydown", (e) => {
   if (dialog.open || (e.target as HTMLElement).tagName === "INPUT" || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
   const cards = [...document.querySelectorAll<HTMLElement>(".card")];
   if (!cards.length) return;
@@ -337,7 +377,7 @@ addEventListener("keydown", (e) => {
   next.click();
   next.scrollIntoView({ block: "nearest" });
 });
-addEventListener("resize", resize);
+window.addEventListener("resize", resize);
 darkQuery.addEventListener("change", applyTheme);
 
 applyTheme();
@@ -348,4 +388,9 @@ renderer.setAnimationLoop((t) => {
   controls.update();
   renderer.render(scene, camera);
 });
-reload().catch((err) => setEmpty(`读取资料库失败：${esc(String(err))}`));
+reload()
+  .then(async () => {
+    // Models downloaded by an older version lack kit names and the rig flag.
+    if (items.some((i) => (i.meta ?? 0) < 1) && (await Library.refresh()) > 0) await reload();
+  })
+  .catch((err) => setEmpty(`读取资料库失败：${esc(String(err))}`));

@@ -27,7 +27,7 @@ func TestFetch(t *testing.T) {
 	}
 	byID := map[string]Asset{}
 	for _, r := range remote {
-		a, _, err := l.fetchAsset(ctx, r)
+		a, _, err := l.fetchAsset(ctx, r, l.kitNames(ctx))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -49,7 +49,22 @@ func TestFetch(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, list[0].GLB)); !os.IsNotExist(err) {
 		t.Errorf("Remove left %s", list[0].GLB)
 	}
-	if list, _ := l.List(); len(list) != 1 {
-		t.Errorf("after Remove: %d assets", len(list))
+	list, _ = l.List()
+	if len(list) != 1 {
+		t.Fatalf("after Remove: %d assets", len(list))
+	}
+
+	// An entry from an older version gets its metadata back.
+	old := list[0]
+	old.Meta, old.Class, old.Triangles = 0, "", 0
+	if err := l.writeManifest(map[string]Asset{old.ID: old}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := l.Refresh(ctx); err != nil || n != 1 {
+		t.Fatalf("Refresh: %v, %d updated", err, n)
+	}
+	list, _ = l.List()
+	if a := list[0]; a.Meta != metaVersion || a.Class == "" || a.Triangles == 0 || a.Bytes == 0 {
+		t.Errorf("after Refresh: %+v", a)
 	}
 }

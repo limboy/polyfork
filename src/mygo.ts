@@ -10,19 +10,37 @@ export interface Asset {
   title: string;
   class?: string;
   kit?: string;
+  kit_title?: string;
   triangles?: number;
   size_m?: Size;
+  rigged?: boolean;
   page?: string;
   glb: string;
   thumb?: string;
   bytes?: number;
+  /**
+   * Meta is the version of the metadata above; entries below metaVersion
+   * are brought up to date by Refresh.
+   */
+  meta?: number;
+}
+
+/** Catalog describes the whole free catalogue on polyfork.dev. */
+export interface Catalog {
+  total: number;
+  /**
+   * Bytes estimates the download from the average size of the models
+   * already in the library.
+   */
+  bytes: number;
 }
 
 /**
  * DownloadOptions selects which assets to download. At least one field
- * must be set.
+ * must be set; All selects the whole free catalogue.
  */
 export interface DownloadOptions {
+  all?: boolean;
   kit?: string;
   query?: string;
   class?: string;
@@ -62,6 +80,13 @@ export interface Size {
  */
 export const Library = {
   /**
+   * Catalog returns how many free assets polyfork.dev has and about how much
+   * downloading all of them takes.
+   */
+  catalog(): Promise<Catalog> {
+    return call("Library.Catalog");
+  },
+  /**
    * Download fetches the assets opts selects, sending progress as each one
    * finishes, and returns how many are now in the library.
    */
@@ -91,6 +116,13 @@ export const Library = {
   /** OpenPage opens an asset's page on polyfork.dev in the browser. */
   openPage(id: string): Promise<void> {
     return call("Library.OpenPage", id);
+  },
+  /**
+   * Refresh fetches the metadata of downloaded models whose entries are older
+   * than this version of the app, and returns how many it updated.
+   */
+  refresh(): Promise<number> {
+    return call("Library.Refresh");
   },
   /** Remove deletes a downloaded model. */
   remove(id: string): Promise<void> {
