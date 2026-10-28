@@ -1,6 +1,7 @@
 """Generate resources/icon.svg, a low-poly tree. Facet colours come from a fake 3D normal lit from the upper left.
 
   python3 resources/icon_gen.py resources/icon.svg && rsvg-convert -w 1024 -h 1024 resources/icon.svg -o resources/icon.png
+  python3 resources/icon_gen.py ios/icon.svg --full-bleed && rsvg-convert -w 1024 -h 1024 ios/icon.svg -o ios/Polyfork/Assets.xcassets/AppIcon.appiconset/icon.png
 """
 import math
 import sys
@@ -68,6 +69,15 @@ leaf = (122, 196, 84)
 for a, b, c in tris:
     out.append(poly([a, b, c], shade(a, b, c, leaf)))
 
+# --full-bleed draws the square to the edges for iOS, which rounds the corners
+# itself; the scene grows to fill the larger body.
+if "--full-bleed" in sys.argv[2:]:
+    body = '<rect width="1024" height="1024" fill="url(#bg)"/>'
+    scene = '<g transform="translate(512 512) scale(1.16) translate(-512 -520)">'
+else:
+    body = '<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>'
+    scene = '<g clip-path="url(#body)">'
+
 svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
@@ -76,8 +86,8 @@ svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" vie
     </linearGradient>
     <clipPath id="body"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
   </defs>
-  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
-  <g clip-path="url(#body)">
+  {body}
+  {scene}
     {chr(10).join("    " + s for s in out)}
   </g>
 </svg>
