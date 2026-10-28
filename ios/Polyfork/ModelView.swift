@@ -9,14 +9,19 @@ struct ModelView: View {
     @State private var url: URL?
     @State private var error: String?
     @State private var arURL: URL?
+    /// Whether RealityKit has the model on screen; the spinner stays until then.
+    @State private var shown = false
 
     var body: some View {
         ZStack {
             Color(.secondarySystemBackground).ignoresSafeArea()
             if let url {
-                ModelScene(url: url)
-                    .ignoresSafeArea(edges: .bottom)
-            } else if let error {
+                ModelScene(url: url) { ok in
+                    if ok { shown = true } else { error = "这个模型打不开。" }
+                }
+                .ignoresSafeArea(edges: .bottom)
+            }
+            if let error {
                 ContentUnavailableView {
                     Label("下载失败", systemImage: "exclamationmark.triangle")
                 } description: {
@@ -24,10 +29,17 @@ struct ModelView: View {
                 } actions: {
                     Button("重试") { Task { await load() } }
                 }
-            } else {
-                ProgressView("正在下载模型…")
+            } else if !shown {
+                // Full size, so that only its opacity changes when the model
+                // arrives, even while the push transition is still running.
+                ProgressView(url == nil ? "正在下载模型…" : "正在加载模型…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(.secondarySystemBackground))
+                    .ignoresSafeArea(edges: .bottom)
+                    .transition(.opacity)
             }
         }
+        .animation(.easeOut(duration: 0.25), value: shown)
         .safeAreaInset(edge: .bottom) { details }
         .navigationTitle(asset.title)
         .navigationBarTitleDisplayMode(.inline)
@@ -94,11 +106,16 @@ struct ModelView: View {
 /// background.
 struct ModelScene: View {
     let url: URL
+    /// Called once the model is on screen, or with false when it can't be read.
+    let onLoad: (Bool) -> Void
 
     var body: some View {
         RealityView { content in
             content.camera = .virtual
-            guard let model = try? await Entity(contentsOf: url) else { return }
+            guard let model = try? await Entity(contentsOf: url) else {
+                onLoad(false)
+                return
+            }
             let bounds = model.visualBounds(relativeTo: nil)
             let longest = max(bounds.extents.x, bounds.extents.y, bounds.extents.z)
             let scale = longest > 0 ? 0.7 / longest : 1
@@ -114,6 +131,7 @@ struct ModelScene: View {
             root.addChild(sun)
 
             content.add(root)
+            onLoad(true)
         }
         .realityViewCameraControls(.orbit)
     }
