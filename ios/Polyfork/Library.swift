@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 /// The catalogue, cached on disk so that the app opens without the network,
 /// and the models downloaded to the phone.
@@ -70,11 +71,20 @@ final class Library {
 
     // MARK: Downloads
 
+    /// Bytes the downloaded models take, kept up to date as they come and go.
+    private(set) var downloadedBytes: Int64 = 0
+
     func localURL(_ asset: Asset) -> URL { modelsURL.appending(path: "\(asset.id).usdz") }
+
+    private func size(_ url: URL) -> Int64 {
+        let attrs = try? fm.attributesOfItem(atPath: url.path(percentEncoded: false))
+        return (attrs?[.size] as? Int64) ?? 0
+    }
 
     private func scanDownloads() {
         let names = (try? fm.contentsOfDirectory(atPath: modelsURL.path(percentEncoded: false))) ?? []
         downloaded = Set(names.filter { $0.hasSuffix(".usdz") }.map { String($0.dropLast(5)) })
+        downloadedBytes = downloaded.reduce(0) { $0 + size(modelsURL.appending(path: "\($1).usdz")) }
     }
 
     /// Returns the model's USDZ on the phone, downloading it the first time.
@@ -85,28 +95,97 @@ final class Library {
         try PolyforkAPI.check(response)
         try? fm.removeItem(at: dest)
         try fm.moveItem(at: tmp, to: dest)
-        downloaded.insert(asset.id)
+        if downloaded.insert(asset.id).inserted {
+            downloadedBytes += size(dest)
+        }
         return dest
     }
 
     func remove(_ asset: Asset) {
-        try? fm.removeItem(at: localURL(asset))
-        downloaded.remove(asset.id)
-    }
-
-    /// Bytes the downloaded models take.
-    func downloadedBytes() -> Int64 {
-        downloaded.reduce(0) { sum, id in
-            let attrs = try? fm.attributesOfItem(atPath: modelsURL.appending(path: "\(id).usdz").path(percentEncoded: false))
-            return sum + ((attrs?[.size] as? Int64) ?? 0)
+        let url = localURL(asset)
+        if downloaded.remove(asset.id) != nil {
+            downloadedBytes -= size(url)
         }
+        try? fm.removeItem(at: url)
     }
 
     func removeAll() {
+        cancelDownloadAll()
         for id in downloaded {
             try? fm.removeItem(at: modelsURL.appending(path: "\(id).usdz"))
         }
         downloaded = []
+        downloadedBytes = 0
+    }
+
+    // MARK: Downloading everything
+
+    struct BulkDownload {
+        var done = 0
+        var total: Int
+        var failed = 0
+        var finished = false
+        var stopped = false
+    }
+
+    /// The current or last download of every model, for the settings page.
+    private(set) var bulk: BulkDownload?
+    private var bulkTask: Task<Void, Never>?
+
+    var missing: [Asset] { assets.filter { !downloaded.contains($0.id) } }
+
+    /// About how many bytes the missing models take, from the average of the
+    /// downloaded ones; 0.3 MB each before there are any.
+    var missingBytes: Int64 {
+        let average = downloaded.isEmpty ? 300_000 : downloadedBytes / Int64(downloaded.count)
+        return average * Int64(missing.count)
+    }
+
+    /// Downloads every model the phone lacks, four at a time. Polyfork builds
+    /// a USDZ the first time anyone asks for it, so each takes about a second.
+    func downloadAll() {
+        guard bulkTask == nil else { return }
+        let todo = missing
+        guard !todo.isEmpty else { return }
+        bulk = BulkDownload(total: todo.count)
+        // The download stops when the phone locks or the app leaves the screen.
+        UIApplication.shared.isIdleTimerDisabled = true
+        bulkTask = Task {
+            await withTaskGroup(of: Bool.self) { group in
+                var next = todo.makeIterator()
+                func start() {
+                    guard let asset = next.next() else { return }
+                    group.addTask { await self.fetch(asset) }
+                }
+                for _ in 0..<4 { start() }
+                while let ok = await group.next() {
+                    bulk?.done += 1
+                    if !ok { bulk?.failed += 1 }
+                    if Task.isCancelled {
+                        group.cancelAll()
+                    } else {
+                        start()
+                    }
+                }
+            }
+            bulk?.finished = true
+            bulk?.stopped = Task.isCancelled
+            bulkTask = nil
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
+    }
+
+    func cancelDownloadAll() {
+        bulkTask?.cancel()
+    }
+
+    private func fetch(_ asset: Asset) async -> Bool {
+        do {
+            _ = try await model(asset)
+            return true
+        } catch {
+            return false
+        }
     }
 
     func kitTitle(_ asset: Asset) -> String? {
