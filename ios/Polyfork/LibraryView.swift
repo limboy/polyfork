@@ -8,6 +8,8 @@ struct LibraryView: View {
     @State private var assetClass: String?
     @State private var onlyDownloaded = false
     @State private var showSettings = false
+    /// Sections the user folded, by grouping and label.
+    @State private var collapsed: Set<String> = []
 
     private var visible: [Asset] {
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -25,8 +27,10 @@ struct LibraryView: View {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 10)], spacing: 12, pinnedViews: .sectionHeaders) {
                     ForEach(groups) { g in
+                        let key = "\(grouping.rawValue)/\(g.id)"
+                        let isCollapsed = g.label != nil && collapsed.contains(key)
                         Section {
-                            ForEach(g.assets) { a in
+                            ForEach(isCollapsed ? [] : g.assets) { a in
                                 NavigationLink(value: a) {
                                     AssetCard(asset: a, downloaded: library.downloaded.contains(a.id))
                                 }
@@ -40,7 +44,14 @@ struct LibraryView: View {
                             }
                         } header: {
                             if let label = g.label {
-                                SectionHeader(title: label, count: g.assets.count)
+                                Button {
+                                    withAnimation(.snappy) {
+                                        if isCollapsed { collapsed.remove(key) } else { collapsed.insert(key) }
+                                    }
+                                } label: {
+                                    SectionHeader(title: label, count: g.assets.count, collapsed: isCollapsed)
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -114,19 +125,29 @@ struct LibraryView: View {
     }
 }
 
+/// A section's title, which folds the section when tapped.
 struct SectionHeader: View {
     let title: String
     let count: Int
+    let collapsed: Bool
 
     var body: some View {
         HStack {
             Text(title).font(.subheadline.weight(.semibold))
             Spacer()
             Text("\(count)").font(.footnote).foregroundStyle(.secondary)
+            Image(systemName: "chevron.down")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(collapsed ? -90 : 0))
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
         .frame(maxWidth: .infinity)
-        .background(.bar)
+        .background(.bar, in: .rect(cornerRadius: 12))
+        .contentShape(.rect)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityValue(collapsed ? "已折叠" : "已展开")
     }
 }
 
