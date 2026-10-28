@@ -14,12 +14,11 @@ struct ModelView: View {
 
     var body: some View {
         ZStack {
-            Color(.secondarySystemBackground).ignoresSafeArea()
+            Color(.secondarySystemBackground)
             if let url {
                 ModelScene(url: url) { ok in
                     if ok { shown = true } else { error = "这个模型打不开。" }
                 }
-                .ignoresSafeArea(edges: .bottom)
             }
             if let error {
                 ContentUnavailableView {
@@ -29,17 +28,18 @@ struct ModelView: View {
                 } actions: {
                     Button("重试") { Task { await load() } }
                 }
-            } else if !shown {
-                // Full size, so that only its opacity changes when the model
-                // arrives, even while the push transition is still running.
-                ProgressView(url == nil ? "正在下载模型…" : "正在加载模型…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(.secondarySystemBackground))
-                    .ignoresSafeArea(edges: .bottom)
-                    .transition(.opacity)
             }
+            // Always in the hierarchy and full size, and only its opacity is
+            // animated: RealityView settles its layout as the model arrives,
+            // and an animation on the whole stack carried the spinner with it.
+            ProgressView(url == nil ? "正在下载模型…" : "正在加载模型…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.secondarySystemBackground))
+                .animation(.easeOut(duration: 0.25)) { $0.opacity(shown || error != nil ? 0 : 1) }
+                .allowsHitTesting(false)
         }
-        .animation(.easeOut(duration: 0.25), value: shown)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(edges: .bottom)
         .safeAreaInset(edge: .bottom) { details }
         .navigationTitle(asset.title)
         .navigationBarTitleDisplayMode(.inline)
