@@ -32,7 +32,7 @@ struct LibraryView: View {
                         Section {
                             ForEach(isCollapsed ? [] : g.assets) { a in
                                 NavigationLink(value: a) {
-                                    AssetCard(asset: a, downloaded: library.downloaded.contains(a.id))
+                                    AssetCard(asset: a)
                                 }
                                 .buttonStyle(.plain)
                                 .contextMenu {
@@ -153,20 +153,11 @@ struct SectionHeader: View {
 
 struct AssetCard: View {
     let asset: Asset
-    let downloaded: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Thumbnail(url: asset.thumbnailURL)
                 .clipShape(.rect(cornerRadius: 10))
-                .overlay(alignment: .topTrailing) {
-                    if downloaded {
-                        Image(systemName: "checkmark.circle.fill")
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(.white, .tint)
-                            .padding(5)
-                    }
-                }
             Text(asset.title)
                 .font(.caption)
                 .lineLimit(1)
