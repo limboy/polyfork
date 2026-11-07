@@ -31,6 +31,12 @@ Ship the macOS desktop app using the existing GitHub Actions pipeline. For statu
 
 Use CI for the full release checks and packaging. If local Go checks are needed, use `CGO_ENABLED=0 go test -short ./...`: the full Go tests download real models. Validate workflow changes with `actionlint` when available.
 
+## Write release notes
+
+Prepare a Markdown notes file from the commits and relevant diffs since the previous published release; for the first release, summarize the shipped features from the tagged source. List concrete user-visible additions, improvements, and fixes directly in the notes. Include relevant platform and installation details, and keep the full changelog link as supporting context.
+
+GitHub's `--generate-notes` can produce only a changelog link when changes were committed without pull requests. Supply the prepared summary as part of completing the release. Preserve useful existing notes when updating a published Release, and distinguish source-only platform changes from features available in the attached DMG.
+
 ## Publish and verify
 
 Once the source, version, and authorization are settled, tag the exact release commit and push only that tag. For example, with `version` resolved above and the intended release commit checked out:
@@ -53,13 +59,14 @@ gh run list --repo limboy/polyfork --workflow build-macos.yml \
 
 Use the full commit SHA. Both the `main` push and tag push can have that SHA; select the run whose `headBranch` is the version tag. Allow a short delay for a newly pushed tag to appear.
 
-Watch that run with `gh run watch RUN_ID --repo limboy/polyfork --exit-status`, keeping the user informed during long signing or notarization waits. Unless the user asked only to trigger the build, verify that **Publish GitHub Release** succeeded and inspect the published Release:
+Watch that run with `gh run watch RUN_ID --repo limboy/polyfork --exit-status`, keeping the user informed during long signing or notarization waits. Unless the user asked only to trigger the build, verify that **Publish GitHub Release** succeeded, apply the prepared notes, and inspect the published Release:
 
 ```sh
-gh release view "$tag" --repo limboy/polyfork --json tagName,url,isDraft,assets
+gh release edit "$tag" --repo limboy/polyfork --notes-file "$notes_file"
+gh release view "$tag" --repo limboy/polyfork --json tagName,url,isDraft,body,assets
 ```
 
-Confirm the expected tag, `isDraft: false`, and the matching `polyfork-<version>.dmg` asset. Report the version, Release URL, and DMG download link. If the run is still pending or failed, report its actual state rather than calling the release complete.
+Confirm the expected tag, `isDraft: false`, the matching `polyfork-<version>.dmg` asset, and a readable change list in the body. Report the version, Release URL, and DMG download link. If the run is still pending or failed, report its actual state rather than calling the release complete.
 
 ## Recover a failed release
 
