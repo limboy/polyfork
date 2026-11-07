@@ -1,0 +1,3 @@
+interface:
+  display_name: "Polyfork Release"
+  short_description: "Publish signed Polyfork DMGs through GitHub Actions"
