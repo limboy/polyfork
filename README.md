@@ -23,3 +23,7 @@ The Xcode project is generated from `ios/project.yml` with [XcodeGen](https://gi
 ```sh
 cd ios && xcodegen generate && open Polyfork.xcodeproj
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
