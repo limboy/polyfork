@@ -21,7 +21,18 @@ The **Build macOS DMG** workflow runs on pushes to `main`, `v*` tags, pull reque
 
 Download **Polyfork-macOS-universal** from a successful run's **Artifacts**, unzip it, open the DMG, and drag **Polyfork.app** into **Applications**. The same build is available locally with `bun install --frozen-lockfile && bun run build:dmg`; the image is written to `build/darwin-universal/polyfork-<version>.dmg`.
 
-Pull requests and builds without Apple secrets are ad hoc signed and aren't notarized. On the first launch of one of those downloaded builds, macOS may block it; use **System Settings → Privacy & Security → Open Anyway** after attempting to open the app.
+Pull requests and branch builds without Apple secrets are ad hoc signed and aren't notarized. On the first launch of one of those downloaded builds, macOS may block it; use **System Settings → Privacy & Security → Open Anyway** after attempting to open the app.
+
+### Releases
+
+Pushing a `v*` tag automatically publishes a GitHub Release after the signed, notarized DMG passes verification. The Release includes the DMG and automatically generated release notes. The tag must match the version in `mygo.config.ts`; for the current `0.1.0` version:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+For the next release, update `version` in `mygo.config.ts`, commit and push the change, then create and push the matching tag. Release builds require the Apple secrets below. Tags with a prerelease suffix, such as `v0.2.0-rc.1`, create a prerelease. Rerunning a tag build uploads a missing DMG or finishes an existing draft; published assets are preserved. You can also run the workflow manually against a version tag to publish its Release.
 
 ### Signing and notarization
 

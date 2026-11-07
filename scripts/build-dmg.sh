@@ -8,6 +8,13 @@ fi
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+if [[ "${GITHUB_REF_TYPE:-}" == tag && "${GITHUB_REF_NAME:-}" == v* ]]; then
+  if [[ -z "${APPLE_SIGNING_IDENTITY:-}" || -z "${APPLE_NOTARY_PROFILE:-}" ]]; then
+    echo "Release builds require Apple signing and notarization credentials." >&2
+    exit 1
+  fi
+fi
+
 # MyGo uses the Developer ID and notary profile from the environment when set,
 # and falls back to ad hoc signing for local builds and pull requests.
 bun run build --platform darwin/universal
