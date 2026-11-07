@@ -43,9 +43,9 @@ struct SettingsView: View {
                     Text("打开模型时会下载它的 USDZ 文件，之后离线也能看。全部下载时请让应用停留在前台，锁屏或切走后会暂停，之后再点一次会接着下载缺的。")
                 }
                 Section {
-                    Link("polyfork.dev", destination: URL(string: "https://polyfork.dev")!)
+                    Link("素材来源与许可 · polyfork.dev", destination: URL(string: "https://polyfork.dev/licensing")!)
                 } footer: {
-                    Text("模型来自 polyfork.dev，免费的低多边形模型可以商用、不需要署名，但不能转售或再分发模型本身。")
+                    Text("模型来自 polyfork.dev。免费低模网格可选择 CC BY 4.0（需署名并注明修改）或 Polyfork 许可（免署名，但限制再分发）。具体条款请查看素材许可。")
                 }
             }
             .navigationTitle("设置")

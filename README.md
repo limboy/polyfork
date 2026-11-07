@@ -26,4 +26,8 @@ cd ios && xcodegen generate && open Polyfork.xcodeproj
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+The application's original source code is licensed under the [MIT License](LICENSE).
+
+This project is an independent client for [polyfork.dev](https://polyfork.dev/). The name identifies the source of the assets and does not imply endorsement by Polyfork.
+
+Models, thumbnails, animations, and other content downloaded from polyfork.dev are not covered by this project's MIT license. They remain subject to [Polyfork's licensing terms](https://polyfork.dev/licensing) and any asset-specific notices. Free low-poly mesh files are available under either CC BY 4.0 (with attribution and change notices) or the Polyfork license (without attribution, with restrictions on redistribution). The CC BY option does not cover source modules, HD editions, renders, or thumbnails.
