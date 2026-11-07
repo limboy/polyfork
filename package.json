@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "mygo dev",
     "build": "mygo build",
+    "build:dmg": "bash scripts/build-dmg.sh",
     "generate": "mygo generate",
     "dev:web": "vite",
     "build:web": "tsc --noEmit && vite build",

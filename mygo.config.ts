@@ -12,4 +12,13 @@ export default defineConfig({
   frontendDist: "dist",
   bindings: "src/mygo.ts",
   out: "build",
+  macos: {
+    signingIdentity: process.env.APPLE_SIGNING_IDENTITY,
+    notarize: process.env.APPLE_NOTARY_PROFILE
+      ? {
+          keychainProfile: process.env.APPLE_NOTARY_PROFILE,
+          keychain: process.env.APPLE_KEYCHAIN_PATH,
+        }
+      : undefined,
+  },
 });

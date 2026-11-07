@@ -1,0 +1,71 @@
+name: Build macOS DMG
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Universal macOS DMG
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.4"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run tests
+        run: |
+          go test -short ./...
+          bun test
+
+      - name: Set up Apple signing and notarization
+        if: github.event_name != 'pull_request'
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: bash scripts/prepare-macos-signing.sh
+
+      - name: Build and verify DMG
+        run: bun run build:dmg
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v7
+        with:
+          name: Polyfork-macOS-universal
+          path: build/darwin-universal/*.dmg
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Clean up Apple credentials
+        if: ${{ always() && github.event_name != 'pull_request' }}
+        run: |
+          rm -f "$RUNNER_TEMP/polyfork-signing.p12" "$RUNNER_TEMP/polyfork-notary.p8"
+          if [[ -f "$RUNNER_TEMP/polyfork-signing.keychain-db" ]]; then
+            security delete-keychain "$RUNNER_TEMP/polyfork-signing.keychain-db"
+          fi
