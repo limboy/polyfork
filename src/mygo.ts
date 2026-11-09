@@ -71,6 +71,8 @@ export interface Progress {
   title?: string;
   error?: string;
   cached?: boolean;
+  /** Skipped means the source GLB is no longer available (HTTP 404/410). */
+  skipped?: boolean;
 }
 
 /** Size is an asset's bounding box in metres. */

@@ -376,16 +376,18 @@ $("downloadForm").addEventListener("submit", async (e) => {
   $("dlBar").style.width = "0";
   $("dlStatus").textContent = "正在查询…";
   const failed: string[] = [];
+  let skipped = 0;
   const done = Library.download(opts, progress);
   try {
     for await (const p of progress) {
       if (downloading.signal.aborted) break;
       $("dlBar").style.width = p.total ? `${(p.done / p.total) * 100}%` : "0";
       if (p.error) failed.push(p.title || p.id || "");
+      if (p.skipped) skipped++;
       $("dlStatus").textContent = p.id ? `${p.done} / ${p.total} · ${p.title}${p.cached ? "（已有）" : ""}` : `共 ${p.total} 个`;
     }
     const total = await done;
-    $("dlStatus").textContent = `完成，资料库里现在有 ${total} 个模型` + (failed.length ? `，${failed.length} 个失败` : "");
+    $("dlStatus").textContent = `完成，资料库里现在有 ${total} 个模型` + (failed.length ? `，${failed.length} 个失败` : "") + (skipped ? `，${skipped} 个暂不可用，已跳过` : "");
     if (failed.length) showDlError(`失败：${failed.slice(0, 10).join("、")}${failed.length > 10 ? ` 等 ${failed.length} 个` : ""}`);
   } catch (err) {
     if (!downloading.signal.aborted) showDlError(String(err));
@@ -409,6 +411,9 @@ $("dlCancel").onclick = () => {
 const upDialog = $<HTMLDialogElement>("updates");
 let updates: Updates | null = null;
 let updating: AbortController | null = null;
+let compared = false;
+// Reject results from a dialog the user has canceled, including catalogue reads.
+let checkRun = 0;
 
 function upError(msg: string | null) {
   $("upError").hidden = msg === null;
@@ -421,150 +426,143 @@ function upBar(done: number, total: number, text: string) {
   $("upProgressText").textContent = text;
 }
 
-// The ids the checked boxes select.
+function upDetails(text: string) {
+  $("upDetails").hidden = !text;
+  $("upDetails").textContent = text;
+}
+
+// Every new model and every changed download is included, regardless of kit.
 function upSelection() {
-  if (!updates) return [];
-  const ids: string[] = [];
-  if ($<HTMLInputElement>("upChanged").checked) ids.push(...updates.changed.map((i) => i.id));
-  for (const n of updates.new) {
-    if (n.inKit ? $<HTMLInputElement>("upInKit").checked : $<HTMLInputElement>("upOther").checked) ids.push(n.id);
-  }
-  return ids;
+  return updates ? [...new Set([...updates.changed, ...updates.new].map((i) => i.id))] : [];
 }
 
 function upSync() {
-  const n = upSelection().length;
-  $<HTMLButtonElement>("upStart").disabled = n === 0 || !!updating;
-  $("upStart").textContent = n ? `开始更新（${n} 个）` : "开始更新";
+  const canUpdate = !!updates && (upSelection().length > 0 || (!compared && items.length > 0));
+  $<HTMLButtonElement>("upStart").disabled = !canUpdate || !!updating;
 }
 
-// Bumped on each check, so that a check the user walked away from does not
-// fill the dialog of a later one.
-let checkRun = 0;
-let compared = false;
-
 async function openUpdates() {
-  if (updating) return upDialog.showModal();
+  if (!upDialog.open) upDialog.showModal();
+  if (updating && !updating.signal.aborted) return;
   const run = ++checkRun;
   updates = null;
   compared = false;
   upError(null);
-  $("upChoices").hidden = true;
+  upDetails("");
   $("upProgress").hidden = true;
   $("upStatus").textContent = "正在读取网站目录…";
   upSync();
-  upDialog.showModal();
   try {
     const u = await Library.checkUpdates();
     if (run !== checkRun) return;
     updates = u;
+    $("upStatus").textContent = u.new.length ? `发现 ${u.new.length.toLocaleString()} 个新模型。` : "没有新模型。";
+    upDetails(items.length ? "更新全部新模型，并自动检查和更新已有模型。" : u.new.length ? "下载全部新模型。" : "");
+    upSync();
   } catch (err) {
-    if (run === checkRun) upError(String(err));
-    return;
-  }
-  renderUpdates();
-}
-
-function renderUpdates() {
-  const u = updates!;
-  const inKit = u.new.filter((n) => n.inKit).length;
-  const other = u.new.length - inKit;
-  const avg = catalog && catalog.total ? catalog.bytes / catalog.total : 0;
-  const rows: [string, number, string][] = [
-    ["upChanged", compared ? u.changed.length : 0, `更新 ${u.changed.length} 个网站上有改动的模型`],
-    ["upInKit", inKit, `下载已有套件里新增的 ${inKit} 个模型`],
-    ["upOther", other, `下载其他 ${other.toLocaleString()} 个新模型${avg ? `（约 ${gb(avg * other)}）` : ""}`],
-  ];
-  for (const [id, n, text] of rows) {
-    $(id).closest("label")!.hidden = n === 0;
-    $(id + "Text").textContent = text;
-  }
-  $("upGone").hidden = u.gone === 0;
-  $("upGone").textContent = `另有 ${u.gone} 个模型网站上已经没有了，本地的保留不动。`;
-
-  // Comparing takes a request per model, about 0.9 s each, checkWorkers (24) at a time.
-  const minutes = Math.max(1, Math.round((items.length * 0.9) / 24 / 60));
-  $("upCompareRow").hidden = compared || items.length === 0;
-  $("upCompareText").textContent = `已下载的 ${items.length.toLocaleString()} 个模型是否有改动：未比对（约 ${minutes} 分钟）`;
-
-  const news = u.new.length ? `网站上有 ${u.new.length.toLocaleString()} 个你还没有的模型。` : "没有新模型。";
-  const changes = compared ? (u.changed.length ? "" : "已下载的模型都是最新的。") : "";
-  $("upStatus").textContent = news + changes;
-  $("upChoices").hidden = false;
-  upSync();
-}
-
-async function compareChanged() {
-  if (!updates || updating) return;
-  upError(null);
-  updating = new AbortController();
-  upSync();
-  $("upCancel").textContent = "停止";
-  $("upCompareRow").hidden = true;
-  upBar(0, items.length, "正在比对已下载的模型…");
-  const progress = new Channel<CheckProgress>();
-  updating.signal.addEventListener("abort", () => progress.close());
-  const done = Library.checkChanged(progress);
-  try {
-    for await (const p of progress) {
-      if (updating.signal.aborted) break;
-      upBar(p.done, p.total, `正在比对已下载的模型… ${p.done.toLocaleString()} / ${p.total.toLocaleString()}`);
+    if (run === checkRun) {
+      $("upStatus").textContent = "检查更新失败，请稍后重新检查。";
+      upError(err instanceof Error ? err.message : String(err));
     }
-    updates.changed = await done;
-    compared = true;
-  } catch (err) {
-    if (!updating.signal.aborted) upError(String(err));
-  } finally {
-    updating = null;
-    $("upCancel").textContent = "关闭";
-    $("upProgress").hidden = true;
-    renderUpdates();
   }
 }
 
 $("updatesForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const ids = upSelection();
-  if (!ids.length || updating) return;
+  if (!updates || updating) return;
+  const u = updates;
+  const run = checkRun;
+  const controller = new AbortController();
+  updating = controller;
   upError(null);
-  updating = new AbortController();
+  upDetails("");
   upSync();
-  $("upCancel").textContent = "停止";
-  upBar(0, ids.length, "开始下载…");
-  const failed: string[] = [];
-  const progress = new Channel<Progress>();
-  updating.signal.addEventListener("abort", () => progress.close());
-  const done = Library.update(ids, progress);
-  try {
-    for await (const p of progress) {
-      if (updating.signal.aborted) break;
-      if (p.error) failed.push(p.title || p.id || "");
-      if (p.id) upBar(p.done, p.total, `${p.done} / ${p.total} · ${p.title}`);
+  let downloaded = false;
+
+  // Each channel serves one call. Attach cancellation only for its lifetime,
+  // and await the call directly so an early rejection is always handled.
+  async function stream<T, P>(call: (progress: Channel<P>) => Promise<T>, receive: (p: P) => void) {
+    controller.signal.throwIfAborted();
+    const progress = new Channel<P>((p) => {
+      if (!controller.signal.aborted && run === checkRun) receive(p);
+    });
+    const cancel = () => progress.close();
+    controller.signal.addEventListener("abort", cancel, { once: true });
+    try {
+      const result = await call(progress);
+      controller.signal.throwIfAborted();
+      return result;
+    } finally {
+      controller.signal.removeEventListener("abort", cancel);
     }
-    await done;
-    $("upStatus").textContent = `更新完成${failed.length ? `，${failed.length} 个失败` : ""}。`;
-    if (failed.length) upError(`失败：${failed.slice(0, 10).join("、")}${failed.length > 10 ? ` 等 ${failed.length} 个` : ""}`);
-    $("upChoices").hidden = true;
-    updates = null;
+  }
+
+  try {
+    if (!compared) {
+      $("upStatus").textContent = "正在检查已有模型…";
+      upBar(0, items.length, "正在比对已下载的模型…");
+      u.changed = await stream(Library.checkChanged, (p: CheckProgress) => {
+        upBar(p.done, p.total, `正在比对… ${p.done.toLocaleString()} / ${p.total.toLocaleString()}`);
+      });
+      compared = true;
+    }
+    const ids = upSelection();
+    if (!ids.length) {
+      $("upStatus").textContent = "所有模型都是最新的。";
+      return;
+    }
+    $("upStatus").textContent = `正在更新 ${ids.length.toLocaleString()} 个模型…`;
+    upBar(0, ids.length, "开始下载…");
+    downloaded = true;
+    const failed = new Map<string, string>();
+    const skipped = new Set<string>();
+    await stream((progress: Channel<Progress>) => Library.update(ids, progress), (p) => {
+      if (p.id && p.skipped) skipped.add(p.id);
+      else if (p.id && p.error) failed.set(p.id, `${p.title || p.id}：${p.error}`);
+      if (p.id) upBar(p.done, p.total, `${p.done} / ${p.total} · ${p.title || p.id}`);
+    });
+    const count = ids.length - failed.size - skipped.size;
+    $("upStatus").textContent = failed.size
+      ? `已更新 ${count.toLocaleString()} 个模型，${failed.size} 个失败。`
+      : `更新完成，已更新 ${count.toLocaleString()} 个模型。`;
+    if (skipped.size) upDetails(`${skipped.size} 个模型的源文件暂不可用，已跳过。`);
+    if (failed.size) upError(`以下模型更新失败，可点击“更新”重试：\n${[...failed.values()].slice(0, 10).join("\n")}`);
+    // Keep only genuine failures for a retry. Unavailable source files are
+    // checked again the next time the user checks the site's catalogue.
+    u.changed = u.changed.filter((i) => failed.has(i.id));
+    u.new = u.new.filter((i) => failed.has(i.id));
   } catch (err) {
-    if (!updating.signal.aborted) upError(String(err));
+    if (!controller.signal.aborted && run === checkRun) {
+      $("upStatus").textContent = "更新未完成，可点击“更新”重试。";
+      upError(err instanceof Error ? err.message : String(err));
+    }
   } finally {
     updating = null;
-    $("upCancel").textContent = "关闭";
+    if (run === checkRun) $("upProgress").hidden = true;
     upSync();
     // Reload the model on screen too, in case it was one of those updated.
-    if (current) scene.remove(current);
-    current = null;
-    await reload();
+    if (downloaded) {
+      if (current) scene.remove(current);
+      current = null;
+      try {
+        await reload();
+      } catch (err) {
+        if (run === checkRun) upError(`刷新资料库失败：${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
   }
 });
 
-$("upCancel").onclick = () => {
-  if (updating) updating.abort();
-  else upDialog.close();
-};
-for (const id of ["upChanged", "upInKit", "upOther"]) $(id).addEventListener("change", upSync);
-$("upCompare").onclick = compareChanged;
+function cancelUpdates() {
+  ++checkRun;
+  updating?.abort();
+  upDialog.close();
+}
+$("upCancel").onclick = cancelUpdates;
+upDialog.addEventListener("cancel", (e) => {
+  e.preventDefault();
+  cancelUpdates();
+});
 
 // --- wiring ---
 
@@ -612,11 +610,7 @@ window.addEventListener("click", (e) => {
 });
 $("openDownload").onclick = openDownload;
 $("openFolder").onclick = () => Library.openFolder();
-$("openUpdates").onclick = () => {
-  // The size estimate in the dialog needs the catalogue's numbers.
-  if (!catalog) Library.catalog().then((c) => (catalog = c)).catch(() => {});
-  openUpdates();
-};
+$("openUpdates").onclick = openUpdates;
 window.addEventListener("keydown", (e) => {
   if (dialog.open || upDialog.open || (e.target as HTMLElement).tagName === "INPUT" || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
   const cards = [...document.querySelectorAll<HTMLElement>(".card")];

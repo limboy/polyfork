@@ -105,6 +105,8 @@ type Progress struct {
 	Title  string `json:"title,omitempty"`
 	Error  string `json:"error,omitempty"`
 	Cached bool   `json:"cached,omitempty"`
+	// Skipped means the source GLB is no longer available (HTTP 404/410).
+	Skipped bool `json:"skipped,omitempty"`
 }
 
 // Folder returns the folder the models are stored in.
@@ -209,7 +211,9 @@ func (l *Library) fetchMany(ctx context.Context, remote []remoteAsset, force boo
 				sendMu.Lock()
 				done++
 				p := Progress{Done: done, Total: len(remote), ID: r.ID, Title: r.Title, Cached: cached}
-				if err != nil {
+				if unavailable(err) {
+					p.Skipped = true
+				} else if err != nil {
 					p.Error = err.Error()
 				} else {
 					got = append(got, a)
@@ -512,9 +516,24 @@ func (l *Library) do(ctx context.Context, method, u string) (*http.Response, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		return nil, fmt.Errorf("%s: %s", u, resp.Status)
+		return nil, &httpStatusError{URL: u, Status: resp.Status, Code: resp.StatusCode}
 	}
 	return resp, nil
+}
+
+type httpStatusError struct {
+	URL    string
+	Status string
+	Code   int
+}
+
+func (e *httpStatusError) Error() string { return fmt.Sprintf("%s: %s", e.URL, e.Status) }
+
+// A catalogue entry can outlive its source file. Treat that as unavailable,
+// rather than a failed update; other HTTP and filesystem errors stay errors.
+func unavailable(err error) bool {
+	var status *httpStatusError
+	return errors.As(err, &status) && (status.Code == http.StatusNotFound || status.Code == http.StatusGone)
 }
 
 func (l *Library) getJSON(ctx context.Context, u string, v any) error {
