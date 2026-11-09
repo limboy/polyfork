@@ -6,6 +6,7 @@ import { Channel } from "mygo-runtime";
 // Library and its types are generated from library.go by `mygo generate`.
 import { Library, type Asset, type CheckProgress, type Progress, type Updates } from "./mygo";
 import { CLASSES, classLabel, groupItems, kitLabel } from "./groups";
+import { initSidebarResize } from "./sidebar";
 
 // The Go side serves the models folder under this scheme (see main.go).
 const MODELS = "models://localhost/";
@@ -17,6 +18,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 
 const canvas = $<HTMLCanvasElement>("c");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const rendererSize = new THREE.Vector2();
 renderer.setPixelRatio(devicePixelRatio);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.shadowMap.enabled = true;
@@ -71,6 +73,8 @@ function buildGrid() {
 
 function resize() {
   const { clientWidth: w, clientHeight: h } = canvas.parentElement!;
+  renderer.getSize(rendererSize);
+  if (w <= 0 || h <= 0 || (rendererSize.x === w && rendererSize.y === h)) return;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
@@ -620,12 +624,13 @@ window.addEventListener("keydown", (e) => {
   next.click();
   next.scrollIntoView({ block: "nearest" });
 });
-window.addEventListener("resize", resize);
+initSidebarResize();
 darkQuery.addEventListener("change", applyTheme);
 
 applyTheme();
-resize();
 renderer.setAnimationLoop((t) => {
+  // Resizing clears the drawing buffer, so do it immediately before drawing.
+  resize();
   timer.update(t);
   mixer?.update(timer.getDelta());
   controls.update();

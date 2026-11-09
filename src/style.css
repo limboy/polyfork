@@ -81,11 +81,28 @@ button:disabled {
 
 aside {
   width: 340px;
+  min-width: 340px;
+  position: relative;
   flex: none;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--line);
   background: var(--panel);
+}
+#sidebarResize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -4px;
+  width: 8px;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.sidebar-resizing,
+.sidebar-resizing * {
+  cursor: col-resize !important;
 }
 .controls {
   padding: 12px;
@@ -109,7 +126,7 @@ aside {
   overflow: auto;
   padding: 10px;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(var(--sidebar-columns, 3), minmax(0, 1fr));
   grid-auto-rows: max-content;
   gap: 8px;
   align-content: start;
