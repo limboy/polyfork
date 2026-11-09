@@ -50,9 +50,22 @@ export interface Group {
   items: Asset[];
 }
 
+const titleOrder = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+const updatedAt = (item: Asset) => item.updated_at ?? 0;
+
+export function sortItems(list: Asset[], by: string): Asset[] {
+  return [...list].sort((a, b) =>
+    (by === "updated" ? updatedAt(b) - updatedAt(a) : 0)
+    || titleOrder.compare(a.title, b.title)
+    || a.id.localeCompare(b.id),
+  );
+}
+
 // groupItems splits list by one of the groupings above, keeping each
-// group's items in list order; an unknown name returns one unlabelled group.
-export function groupItems(list: Asset[], by: string): Group[] {
+// group's items in list order unless an order is specified. Recent-first
+// ordering also puts the group containing the newest model first.
+export function groupItems(list: Asset[], by: string, order?: string): Group[] {
+  if (order) list = sortItems(list, order);
   const grouping = GROUPINGS[by];
   if (!grouping) return [{ label: null, items: list }];
   const groups = new Map<string, { key: number; items: Asset[] }>();
@@ -63,6 +76,9 @@ export function groupItems(list: Asset[], by: string): Group[] {
     g.items.push(i);
   }
   return [...groups]
-    .sort(([a, ga], [b, gb]) => ga.key - gb.key || a.localeCompare(b))
+    .sort(([a, ga], [b, gb]) =>
+      (order === "updated" ? updatedAt(gb.items[0]!) - updatedAt(ga.items[0]!) : 0)
+      || ga.key - gb.key || a.localeCompare(b),
+    )
     .map(([label, g]) => ({ label, items: g.items }));
 }

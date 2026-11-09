@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { groupItems } from "./groups";
+import { groupItems, sortItems } from "./groups";
 import type { Asset } from "./mygo";
 
 const a = (id: string, x: Partial<Asset>): Asset => ({ id, title: id, glb: `${id}.glb`, ...x });
@@ -37,5 +37,37 @@ test("triangles and rig", () => {
   expect(summary("rig")).toEqual([
     ["可动（带骨骼或活动部件）", ["bear"]],
     ["静态", ["cup", "tower", "old"]],
+  ]);
+});
+
+test("recent sorting puts new and updated models first, with unknown times last", () => {
+  const models = [
+    a("unknown", { title: "A model" }),
+    a("old", { updated_at: 100 }),
+    a("model10", { title: "Model 10", updated_at: 200 }),
+    a("model2", { title: "Model 2", updated_at: 200 }),
+  ];
+  expect(sortItems(models, "updated").map((i) => i.id)).toEqual(["model2", "model10", "old", "unknown"]);
+  expect(models.map((i) => i.id)).toEqual(["unknown", "old", "model10", "model2"]);
+});
+
+test("name sorting uses names regardless of update times", () => {
+  const models = [a("new", { title: "Tree 10", updated_at: 200 }), a("old", { title: "Tree 2", updated_at: 100 })];
+  expect(sortItems(models, "name").map((i) => i.id)).toEqual(["old", "new"]);
+});
+
+test("recent sorting moves the newest group and its newest model to the front", () => {
+  const models = [
+    a("cafe-old", { kit: "cafe", kit_title: "Cafe", updated_at: 100 }),
+    a("forest-old", { kit: "forest", kit_title: "Forest", updated_at: 50 }),
+    a("forest-new", { kit: "forest", kit_title: "Forest", updated_at: 300 }),
+    a("cafe-new", { kit: "cafe", kit_title: "Cafe", updated_at: 200 }),
+  ];
+  expect(groupItems(models, "kit", "updated").map((g) => [g.label, g.items.map((i) => i.id)])).toEqual([
+    ["Forest", ["forest-new", "forest-old"]],
+    ["Cafe", ["cafe-new", "cafe-old"]],
+  ]);
+  expect(groupItems(models, "", "updated")[0]!.items.map((i) => i.id)).toEqual([
+    "forest-new", "cafe-new", "cafe-old", "forest-old",
   ]);
 });

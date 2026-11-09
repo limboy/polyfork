@@ -273,13 +273,13 @@ function card(i: Asset) {
 
 // displayed returns the visible models in the order the sidebar shows them.
 function displayed() {
-  return groupItems(visible(), $<HTMLSelectElement>("group").value).flatMap((g) => g.items);
+  return groupItems(visible(), $<HTMLSelectElement>("group").value, $<HTMLSelectElement>("sort").value).flatMap((g) => g.items);
 }
 
 function render() {
   const list = visible();
   $("count").textContent = `${list.length} / ${items.length} 个模型`;
-  const groups = groupItems(list, $<HTMLSelectElement>("group").value);
+  const groups = groupItems(list, $<HTMLSelectElement>("group").value, $<HTMLSelectElement>("sort").value);
   $("grid").replaceChildren(
     ...groups.flatMap(({ label, items }) => {
       if (label === null) return items.map(card);
@@ -570,16 +570,23 @@ upDialog.addEventListener("cancel", (e) => {
 
 // --- wiring ---
 
-["search", "kit", "cls"].forEach((id) => $(id).addEventListener("input", render));
-$("group").addEventListener("input", () => {
+$("search").addEventListener("input", render);
+["kit", "cls"].forEach((id) => $(id).addEventListener("change", render));
+for (const [id, fallback] of [["group", "kit"], ["sort", "updated"]] as const) {
+  const select = $<HTMLSelectElement>(id);
+  select.value = fallback;
   try {
-    localStorage.setItem("group", $<HTMLSelectElement>("group").value);
+    const saved = localStorage.getItem(id);
+    if (saved !== null && [...select.options].some((option) => option.value === saved)) select.value = saved;
   } catch {}
-  render();
-});
-try {
-  $<HTMLSelectElement>("group").value = localStorage.getItem("group") ?? "kit";
-} catch {}
+  select.addEventListener("change", () => {
+    try {
+      localStorage.setItem(id, select.value);
+    } catch {}
+    render();
+    $("grid").scrollTop = 0;
+  });
+}
 $("dlAll").onchange = syncAll;
 $<HTMLInputElement>("rotate").onchange = (e) => (controls.autoRotate = (e.target as HTMLInputElement).checked);
 $("wire").onchange = applyWire;
@@ -616,7 +623,7 @@ $("openDownload").onclick = openDownload;
 $("openFolder").onclick = () => Library.openFolder();
 $("openUpdates").onclick = openUpdates;
 window.addEventListener("keydown", (e) => {
-  if (dialog.open || upDialog.open || (e.target as HTMLElement).tagName === "INPUT" || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+  if (dialog.open || upDialog.open || ["INPUT", "SELECT", "TEXTAREA"].includes((e.target as HTMLElement).tagName) || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
   const cards = [...document.querySelectorAll<HTMLElement>(".card")];
   if (!cards.length) return;
   const idx = cards.findIndex((c) => c.dataset.id === activeId);

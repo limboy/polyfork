@@ -18,6 +18,8 @@ export interface Asset {
   glb: string;
   thumb?: string;
   bytes?: number;
+  /** UpdatedAt is the local GLB's modification time in Unix milliseconds. */
+  updated_at?: number;
   /**
    * Meta is the version of the metadata above; entries below metaVersion
    * are brought up to date by Refresh.

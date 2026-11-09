@@ -65,6 +65,8 @@ type Asset struct {
 	GLB       string `json:"glb"`
 	Thumb     string `json:"thumb,omitempty"`
 	Bytes     int64  `json:"bytes,omitempty"`
+	// UpdatedAt is the local GLB's modification time in Unix milliseconds.
+	UpdatedAt int64 `json:"updated_at,omitempty"`
 	// Meta is the version of the metadata above; entries below metaVersion
 	// are brought up to date by Refresh.
 	Meta int `json:"meta,omitempty"`
@@ -147,7 +149,18 @@ func (l *Library) OpenPage(id string) error {
 func (l *Library) List() ([]Asset, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.readManifest()
+	all, err := l.readManifest()
+	if err != nil {
+		return nil, err
+	}
+	// File times also cover libraries downloaded before update times were
+	// exposed. Cached downloads and metadata refreshes leave these unchanged.
+	for i := range all {
+		if fi, err := os.Stat(filepath.Join(l.Folder(), all[i].GLB)); err == nil && !fi.IsDir() {
+			all[i].UpdatedAt = fi.ModTime().UnixMilli()
+		}
+	}
+	return all, nil
 }
 
 // Kits returns the kits on polyfork.dev.
