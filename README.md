@@ -5,8 +5,11 @@ A desktop app, built with [mygo](https://github.com/egoist/mygo), that downloads
 - `library.go`: the `Library` service the page calls. It searches the Polyfork API, downloads GLBs and thumbnails, and keeps `manifest.json`.
 - `main.go`: binds `Library`, and serves the models folder to the page as `models://localhost/…`.
 - `src/main.ts`: the three.js viewer and the download dialog.
+- `app_updates.go` and `src/app-updates.ts`: application update checks and release notes.
 
 Models are stored in `~/Library/Application Support/Polyfork/models` (`Polyfork Dev` for `bun run dev`).
+
+**Check for Updates…** in the application menu checks the latest stable GitHub Release, displays its changes, and opens the universal DMG download when a newer version is available. Open the downloaded DMG and drag the app into Applications to finish updating. **更新模型** separately checks the model library.
 
 ```sh
 bun run dev       # develop

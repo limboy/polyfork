@@ -12,6 +12,7 @@ import (
 func main() {
 	lib := NewLibrary()
 	mygo.Bind(lib)
+	mygo.Bind(NewAppUpdates())
 
 	// models://localhost/<id>.glb serves the downloaded files to the page.
 	var files http.Handler
@@ -22,7 +23,7 @@ func main() {
 	})
 
 	mygo.App.WhenReady(func() {
-		mygo.NewWindow(mygo.WindowOptions{
+		win := mygo.NewWindow(mygo.WindowOptions{
 			Title:           "Polyfork",
 			Width:           1280,
 			Height:          820,
@@ -32,6 +33,29 @@ func main() {
 			StateKey:        "main",
 			URL:             "/",
 		})
+		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
+			{Label: mygo.App.Name(), Submenu: []*mygo.MenuItem{
+				{Role: mygo.RoleAbout},
+				{Label: "Check for Updates…", Click: func(*mygo.MenuItem, *mygo.Window) {
+					win.Show()
+					if err := AppUpdateRequested.Emit(win, true); err != nil {
+						log.Println(err)
+					}
+				}},
+				mygo.Separator(),
+				{Role: mygo.RoleServices},
+				mygo.Separator(),
+				{Role: mygo.RoleHide},
+				{Role: mygo.RoleHideOthers},
+				{Role: mygo.RoleUnhide},
+				mygo.Separator(),
+				{Role: mygo.RoleQuit},
+			}},
+			{Role: mygo.RoleFileMenu},
+			{Role: mygo.RoleEditMenu},
+			{Role: mygo.RoleViewMenu},
+			{Role: mygo.RoleWindowMenu},
+		}))
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)

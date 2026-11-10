@@ -34,7 +34,7 @@
         <div class="row count">
           <span id="count"></span>
           <span class="row">
-            <button id="openUpdates" class="link">检查更新</button>
+            <button id="openUpdates" class="link">更新模型</button>
             <button id="openFolder" class="link">打开文件夹</button>
           </span>
         </div>
@@ -90,7 +90,7 @@
 
     <dialog id="updates" aria-labelledby="upTitle" aria-describedby="upStatus">
       <form id="updatesForm" method="dialog">
-        <h2 id="upTitle">检查更新</h2>
+        <h2 id="upTitle">更新模型</h2>
         <p id="upStatus" role="status">正在读取网站目录…</p>
         <p class="muted" id="upDetails" hidden></p>
         <div class="progress" id="upProgress" hidden>
@@ -101,6 +101,24 @@
         <div class="actions">
           <button type="button" id="upCancel">取消</button>
           <button type="submit" id="upStart" class="primary" disabled>更新</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="appUpdates" aria-labelledby="appUpdateTitle" aria-describedby="appUpdateStatus">
+      <form id="appUpdateForm" method="dialog">
+        <h2 id="appUpdateTitle">Check for Updates</h2>
+        <p id="appUpdateStatus" role="status">正在检查…</p>
+        <p id="appUpdateVersion" class="muted"></p>
+        <section id="appUpdateChanges" hidden>
+          <h3 id="appUpdateChangesTitle">更新内容</h3>
+          <div id="appUpdateNotes" class="release-notes"></div>
+        </section>
+        <p id="appUpdateHint" class="muted" hidden>下载后打开 DMG，将应用拖入「应用程序」完成更新。</p>
+        <div id="appUpdateError" class="error" role="alert" hidden></div>
+        <div class="actions">
+          <button type="button" id="appUpdateCancel">关闭</button>
+          <button type="submit" id="appUpdateAction" class="primary" disabled>检查中…</button>
         </div>
       </form>
     </dialog>

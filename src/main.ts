@@ -7,6 +7,7 @@ import { Channel } from "mygo-runtime";
 import { Library, type Asset, type CheckProgress, type Progress, type Updates } from "./mygo";
 import { CLASSES, classLabel, groupItems, kitLabel } from "./groups";
 import { initSidebarResize } from "./sidebar";
+import { initAppUpdates } from "./app-updates";
 
 // The Go side serves the models folder under this scheme (see main.go).
 const MODELS = "models://localhost/";
@@ -622,8 +623,9 @@ window.addEventListener("click", (e) => {
 $("openDownload").onclick = openDownload;
 $("openFolder").onclick = () => Library.openFolder();
 $("openUpdates").onclick = openUpdates;
+const appUpdatesDialog = initAppUpdates();
 window.addEventListener("keydown", (e) => {
-  if (dialog.open || upDialog.open || ["INPUT", "SELECT", "TEXTAREA"].includes((e.target as HTMLElement).tagName) || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+  if (dialog.open || upDialog.open || appUpdatesDialog.open || ["INPUT", "SELECT", "TEXTAREA"].includes((e.target as HTMLElement).tagName) || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
   const cards = [...document.querySelectorAll<HTMLElement>(".card")];
   if (!cards.length) return;
   const idx = cards.findIndex((c) => c.dataset.id === activeId);

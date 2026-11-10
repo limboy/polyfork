@@ -337,6 +337,56 @@ dialog label.check span {
   user-select: text;
   -webkit-user-select: text;
 }
+#appUpdates {
+  width: 560px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+}
+#appUpdates form {
+  max-height: calc(100vh - 74px);
+  gap: 12px;
+}
+#appUpdateVersion,
+#appUpdateHint {
+  font-size: 12px;
+}
+#appUpdateChanges {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+#appUpdateChangesTitle {
+  flex: none;
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.release-notes {
+  min-height: 0;
+  max-height: 340px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.release-notes > :first-child { margin-top: 0; }
+.release-notes > :last-child { margin-bottom: 0; }
+.release-notes p,
+.release-notes ul,
+.release-notes ol,
+.release-notes pre,
+.release-notes blockquote { margin: 0 0 10px; }
+.release-notes h1,
+.release-notes h2,
+.release-notes h3 { margin: 16px 0 8px; font-size: 13px; }
+.release-notes ul,
+.release-notes ol { padding-left: 20px; }
+.release-notes li + li { margin-top: 6px; }
+.release-notes a { color: var(--accent); }
+#appUpdateError { overflow-wrap: anywhere; }
+#appUpdates .actions { flex: none; }
 dialog label:has(:disabled) {
   opacity: 0.45;
 }
