@@ -28,14 +28,14 @@ Pull requests and branch builds without Apple secrets are ad hoc signed and aren
 
 ### Releases
 
-Pushing a `v*` tag automatically publishes a GitHub Release after the signed, notarized DMG passes verification. The Release includes the DMG and automatically generated release notes. The tag must match the version in `mygo.config.ts`; for the current `0.2.0` version:
+Pushing a `v*` tag automatically publishes a GitHub Release after the signed, notarized DMG passes verification. The Release includes the DMG and automatically generated release notes. The tag must match the version in `mygo.config.ts`; for the current `0.3.0` version:
 
 ```sh
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
-For the next release, update `version` in `mygo.config.ts`, commit and push the change, then create and push the matching tag. Release builds require the Apple secrets below. Tags with a prerelease suffix, such as `v0.3.0-rc.1`, create a prerelease. Rerunning a tag build uploads a missing DMG or finishes an existing draft; published assets are preserved. You can also run the workflow manually against a version tag to publish its Release.
+For the next release, update `version` in `mygo.config.ts`, commit and push the change, then create and push the matching tag. Release builds require the Apple secrets below. Tags with a prerelease suffix, such as `v0.4.0-rc.1`, create a prerelease. Rerunning a tag build uploads a missing DMG or finishes an existing draft; published assets are preserved. You can also run the workflow manually against a version tag to publish its Release.
 
 ### Signing and notarization
 
