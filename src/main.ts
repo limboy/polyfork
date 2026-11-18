@@ -57,6 +57,9 @@ let items: Asset[] = [];
 let activeId: string | null = null;
 // The model on screen and its animations, for the toolbars.
 let shown: { item: Asset; clips: THREE.AnimationClip[] } | null = null;
+// The clip playing (-1 for none) and whether it is paused.
+let animIdx = -1;
+let animPaused = false;
 
 function applyTheme() {
   scene.background = new THREE.Color(darkQuery.matches ? 0x1c1c1f : 0xeceae4);
@@ -234,9 +237,52 @@ function setShown(s: typeof shown) {
   $("animWrap").hidden = !s?.clips.length;
   if (!s) return;
   $("info").innerHTML = `<h2>${esc(s.item.title)}</h2>`;
-  $("anim").innerHTML =
-    `<option value="-1">不播放</option>` +
-    s.clips.map((a, i) => `<option value="${i}">${esc(a.name || `动画 ${i + 1}`)}</option>`).join("");
+  $("animMenu").hidden = true;
+  setAnimState(-1, false);
+}
+
+const clipName = (i: number) => (i < 0 ? "不播放" : shown?.clips[i]?.name || `动画 ${i + 1}`);
+
+function setAnimState(idx: number, paused: boolean) {
+  animIdx = idx;
+  animPaused = idx >= 0 && paused;
+  if (mixer) mixer.timeScale = animPaused ? 0 : 1;
+  $("animName").textContent = clipName(idx);
+  const pause = $<HTMLButtonElement>("animPause");
+  pause.disabled = idx < 0;
+  pause.textContent = animPaused ? "▶" : "⏸";
+  pause.title = animPaused ? "继续（空格）" : "暂停（空格）";
+}
+
+function playClip(idx: number) {
+  if (!mixer || !shown) return;
+  mixer.stopAllAction();
+  for (const [o, p, q, s] of restPose) {
+    o.position.copy(p);
+    o.quaternion.copy(q);
+    o.scale.copy(s);
+  }
+  const clip = shown.clips[idx];
+  if (clip) mixer.clipAction(clip).play();
+  setAnimState(clip ? idx : -1, false);
+}
+
+function renderAnimList() {
+  if (!shown) return;
+  const q = $<HTMLInputElement>("animFilter").value.trim().toLowerCase();
+  const rows = [-1, ...shown.clips.keys()].filter((i) => !q || clipName(i).toLowerCase().includes(q));
+  $("animList").innerHTML = rows.length
+    ? rows.map((i) => `<button data-i="${i}" class="${i === animIdx ? "on" : ""}">${esc(clipName(i))}</button>`).join("")
+    : `<div class="anim-none">没有匹配的动画</div>`;
+}
+
+function openAnimMenu() {
+  $("moreMenu").hidden = true;
+  $<HTMLInputElement>("animFilter").value = "";
+  renderAnimList();
+  $("animMenu").hidden = false;
+  $("animList").querySelector(".on")?.scrollIntoView({ block: "center" });
+  $("animFilter").focus();
 }
 
 async function remove(item: Asset) {
@@ -597,20 +643,29 @@ $("reset").onclick = () => {
   camera.position.copy(homeView.pos);
   controls.target.copy(homeView.target);
 };
-$("anim").onchange = (e) => {
-  if (!mixer || !shown) return;
-  mixer.stopAllAction();
-  for (const [o, p, q, s] of restPose) {
-    o.position.copy(p);
-    o.quaternion.copy(q);
-    o.scale.copy(s);
-  }
-  const clip = shown.clips[Number((e.target as HTMLSelectElement).value)];
-  if (clip) mixer.clipAction(clip).play();
+$("animBtn").onclick = (e) => {
+  e.stopPropagation();
+  if ($("animMenu").hidden) openAnimMenu();
+  else $("animMenu").hidden = true;
+};
+$("animPause").onclick = () => animIdx >= 0 && setAnimState(animIdx, !animPaused);
+$("animFilter").oninput = renderAnimList;
+$("animFilter").onkeydown = (e) => {
+  if (e.key === "Escape") $("animMenu").hidden = true;
+  if (e.key !== "Enter") return;
+  const first = $("animList").querySelector<HTMLElement>("button");
+  if (first) first.click();
+};
+$("animList").onclick = (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>("button[data-i]");
+  if (!b) return;
+  playClip(Number(b.dataset.i));
+  $("animMenu").hidden = true;
 };
 $("openPage").onclick = () => shown && Library.openPage(shown.item.id);
 $("more").onclick = (e) => {
   e.stopPropagation();
+  $("animMenu").hidden = true;
   $("moreMenu").hidden = !$("moreMenu").hidden;
 };
 $("remove").onclick = () => {
@@ -618,14 +673,22 @@ $("remove").onclick = () => {
   if (shown) remove(shown.item);
 };
 window.addEventListener("click", (e) => {
-  if (!(e.target as HTMLElement).closest(".menu-wrap")) $("moreMenu").hidden = true;
+  const wrap = (e.target as HTMLElement).closest(".menu-wrap");
+  if (!wrap) $("moreMenu").hidden = true;
+  if (wrap !== $("animWrap")) $("animMenu").hidden = true;
 });
 $("openDownload").onclick = openDownload;
 $("openFolder").onclick = () => Library.openFolder();
 $("openUpdates").onclick = openUpdates;
 const appUpdatesDialog = initAppUpdates();
 window.addEventListener("keydown", (e) => {
-  if (dialog.open || upDialog.open || appUpdatesDialog.open || ["INPUT", "SELECT", "TEXTAREA"].includes((e.target as HTMLElement).tagName) || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+  if (dialog.open || upDialog.open || appUpdatesDialog.open || ["INPUT", "SELECT", "TEXTAREA"].includes((e.target as HTMLElement).tagName)) return;
+  if (e.key === " " && animIdx >= 0) {
+    e.preventDefault();
+    setAnimState(animIdx, !animPaused);
+    return;
+  }
+  if (!["ArrowLeft", "ArrowRight"].includes(e.key)) return;
   const cards = [...document.querySelectorAll<HTMLElement>(".card")];
   if (!cards.length) return;
   const idx = cards.findIndex((c) => c.dataset.id === activeId);
