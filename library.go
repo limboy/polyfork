@@ -223,7 +223,7 @@ func (l *Library) fetchMany(ctx context.Context, remote []remoteAsset, force boo
 				a, cached, err := l.fetchAsset(ctx, r, titles, force)
 				sendMu.Lock()
 				done++
-				p := Progress{Done: done, Total: len(remote), ID: r.ID, Title: r.Title, Cached: cached}
+				p := Progress{Done: done, Total: len(remote), ID: r.ID, Title: a.Title, Cached: cached}
 				if unavailable(err) {
 					p.Skipped = true
 				} else if err != nil {
@@ -409,6 +409,8 @@ func (l *Library) Remove(id string) error {
 }
 
 type remoteAsset struct {
+	needsDetails bool
+
 	ID        string `json:"id"`
 	Title     string `json:"title"`
 	Class     string `json:"class"`
@@ -462,6 +464,16 @@ func (r remoteAsset) asset(titles map[string]string) Asset {
 }
 
 func (l *Library) fetchAsset(ctx context.Context, r remoteAsset, titles map[string]string, force bool) (Asset, bool, error) {
+	if r.needsDetails {
+		var resolved remoteAsset
+		if err := l.getJSON(ctx, apiBase+"/assets/"+url.PathEscape(r.ID), &resolved); err != nil {
+			return r.asset(titles), false, err
+		}
+		if resolved.ID != r.ID {
+			return r.asset(titles), false, fmt.Errorf("asset %q: catalogue returned %q", r.ID, resolved.ID)
+		}
+		r = resolved
+	}
 	glbURL := r.Download.GLB
 	if glbURL == "" {
 		glbURL = "https://polyfork.dev/cdn/" + url.PathEscape(r.ID) + ".glb"

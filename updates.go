@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -88,11 +89,21 @@ func (l *Library) CheckUpdates(ctx context.Context) (Updates, error) {
 // CheckChanged lists the downloaded models whose file on polyfork.dev
 // differs from theirs. The ETag of a GLB on the CDN is the MD5 of the file,
 // so a HEAD request and a hash of the local file tell, without
-// downloading; it takes a request per model.
+// downloading; it takes a request per model. After CheckUpdates, models
+// absent from the catalogue are left alone even if their old CDN files remain.
 func (l *Library) CheckChanged(ctx context.Context, progress *mygo.Channel[CheckProgress]) ([]UpdateItem, error) {
 	check, err := l.List()
 	if err != nil {
 		return nil, err
+	}
+	l.remoteMu.Lock()
+	known := l.remote
+	l.remoteMu.Unlock()
+	if known != nil {
+		check = slices.DeleteFunc(check, func(a Asset) bool {
+			_, listed := known[a.ID]
+			return !listed
+		})
 	}
 	var (
 		mu      sync.Mutex
@@ -145,9 +156,9 @@ func (l *Library) Update(ctx context.Context, ids []string, progress *mygo.Chann
 	for _, id := range ids {
 		r, ok := known[id]
 		if !ok {
-			if err := l.getJSON(ctx, apiBase+"/assets/"+url.PathEscape(id), &r); err != nil {
-				return 0, err
-			}
+			// Resolve uncached entries inside the download workers. A stale
+			// catalogue entry must not abort the entire batch before it starts.
+			r = remoteAsset{ID: id, Title: id, needsDetails: true}
 		}
 		remote = append(remote, r)
 	}

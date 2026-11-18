@@ -136,7 +136,8 @@ export const Library = {
    * CheckChanged lists the downloaded models whose file on polyfork.dev
    * differs from theirs. The ETag of a GLB on the CDN is the MD5 of the file,
    * so a HEAD request and a hash of the local file tell, without
-   * downloading; it takes a request per model.
+   * downloading; it takes a request per model. After CheckUpdates, models
+   * absent from the catalogue are left alone even if their old CDN files remain.
    */
   checkChanged(progress: Channel<CheckProgress>): Promise<UpdateItem[]> {
     return call("Library.CheckChanged", progress);
