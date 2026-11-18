@@ -7,6 +7,7 @@
     "dev": "mygo dev",
     "build": "mygo build",
     "build:dmg": "bash scripts/build-dmg.sh",
+    "install:local": "bun run build && (osascript -e 'quit app \"Polyfork\"' || true) && rm -rf /Applications/Polyfork.app && ditto build/darwin-arm64/Polyfork.app /Applications/Polyfork.app && open /Applications/Polyfork.app",
     "generate": "mygo generate",
     "dev:web": "vite",
     "build:web": "tsc --noEmit && vite build",
